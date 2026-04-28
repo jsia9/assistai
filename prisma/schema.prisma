@@ -1,0 +1,55 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Tenant {
+  id        String    @id @default(cuid())
+  name      String
+  plan      String    @default("starter")
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  users     User[]
+  messages  Message[]
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  passwordHash  String
+  name          String?
+  role          String         @default("user")
+  active        Boolean        @default(true)
+  tenantId      String
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  conversations Conversation[]
+  createdAt     DateTime       @default(now())
+  lastActiveAt  DateTime       @default(now())
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String    @default("Nouvelle conversation")
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  messages  Message[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Message {
+  id               String       @id @default(cuid())
+  conversationId   String
+  conversation     Conversation @relation(fields: [conversationId], references: [id])
+  tenantId         String
+  tenant           Tenant       @relation(fields: [tenantId], references: [id])
+  role             String
+  content          String       @db.Text
+  promptTokens     Int          @default(0)
+  completionTokens Int          @default(0)
+  createdAt        DateTime     @default(now())
+}
