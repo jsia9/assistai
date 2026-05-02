@@ -83,13 +83,16 @@ export default function ChatInterface({
       });
 
       if (!res.ok || !res.body) {
+        let errMsg = "Une erreur s'est produite. Veuillez réessayer.";
+        if (res.status === 402) {
+          try {
+            const json = await res.json();
+            errMsg = json.message ?? errMsg;
+          } catch { /* ignore */ }
+        }
         setMessages((prev) => {
           const copy = [...prev];
-          copy[copy.length - 1] = {
-            role: "assistant",
-            content:
-              "Une erreur s'est produite. Veuillez réessayer.",
-          };
+          copy[copy.length - 1] = { role: "assistant", content: errMsg };
           return copy;
         });
         setStreaming(false);

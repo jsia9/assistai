@@ -8,13 +8,15 @@ datasource db {
 }
 
 model Tenant {
-  id        String    @id @default(cuid())
-  name      String
-  plan      String    @default("starter")
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  users     User[]
-  messages  Message[]
+  id                String    @id @default(cuid())
+  name              String
+  plan              String    @default("starter")
+  active            Boolean   @default(true)
+  monthlyTokenLimit Int       @default(500000)   // 500K tokens (~$5 cost, ~$25 billed at 5×)
+  createdAt         DateTime  @default(now())
+  users             User[]
+  messages          Message[]
+  payments          Payment[]
 }
 
 model User {
@@ -52,4 +54,18 @@ model Message {
   promptTokens     Int          @default(0)
   completionTokens Int          @default(0)
   createdAt        DateTime     @default(now())
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  amount      Float                          // amount billed to client
+  currency    String   @default("USD")
+  method      String   @default("manual")   // Wave | Orange Money | Bank Transfer | manual
+  reference   String?                        // payment ref / receipt number
+  period      String                         // "2026-04"
+  notes       String?
+  paidAt      DateTime @default(now())
+  createdById String?
 }

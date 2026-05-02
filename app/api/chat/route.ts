@@ -5,6 +5,9 @@ import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
 
+const COST_PER_1K = 0.01;
+const MARKUP = 5;
+
 export async function POST(req: NextRequest) {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const session = await getServerSession(authOptions);
@@ -15,6 +18,36 @@ export async function POST(req: NextRequest) {
 
   const userId = session.user.id;
   const tenantId = session.user.tenantId;
+
+  // ── Quota check ──────────────────────────────────────────────
+  const startOfMonth = new Date();
+  startOfMonth.setDate(1);
+  startOfMonth.setHours(0, 0, 0, 0);
+
+  const [tenant, monthlyUsage] = await Promise.all([
+    prisma.tenant.findUnique({ where: { id: tenantId } }),
+    prisma.message.aggregate({
+      where: { tenantId, createdAt: { gte: startOfMonth } },
+      _sum: { promptTokens: true, completionTokens: true },
+    }),
+  ]);
+
+  const tokensUsed =
+    (monthlyUsage._sum.promptTokens ?? 0) +
+    (monthlyUsage._sum.completionTokens ?? 0);
+  const limit = tenant?.monthlyTokenLimit ?? 500000;
+
+  if (tokensUsed >= limit) {
+    const costSoFar = (tokensUsed / 1000) * COST_PER_1K * MARKUP;
+    return new Response(
+      JSON.stringify({
+        error: "quota_exceeded",
+        message: `Votre quota mensuel de ${limit.toLocaleString("fr-FR")} tokens est atteint. Contactez l'administrateur pour augmenter votre limite. (Consommation : ${tokensUsed.toLocaleString("fr-FR")} tokens — valeur estimée : $${costSoFar.toFixed(2)})`,
+      }),
+      { status: 402, headers: { "Content-Type": "application/json" } }
+    );
+  }
+  // ─────────────────────────────────────────────────────────────
 
   let convId = conversationId as string | null;
 
