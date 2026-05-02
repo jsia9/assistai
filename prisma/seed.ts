@@ -1,9 +1,24 @@
 import { PrismaClient } from "../app/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 import bcrypt from "bcryptjs";
 import "dotenv/config";
 
-const adapter = new PrismaPg(process.env.DATABASE_URL!);
+function parseSupabaseUrl(url: string) {
+  const u = new URL(url);
+  return {
+    host: u.hostname,
+    port: parseInt(u.port || "5432", 10),
+    database: u.pathname.replace(/^\//, ""),
+    user: decodeURIComponent(u.username),
+    password: decodeURIComponent(u.password),
+    ssl: { rejectUnauthorized: false },
+  };
+}
+
+const config = parseSupabaseUrl(process.env.DIRECT_URL ?? process.env.DATABASE_URL!);
+const pool = new pg.Pool(config);
+const adapter = new PrismaPg(pool);
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const prisma = new PrismaClient({ adapter } as any);
 
@@ -40,17 +55,29 @@ async function main() {
     },
   });
 
+  const jamalHash = await bcrypt.hash("changeme123", 12);
+  const jamal = await prisma.user.upsert({
+    where: { email: "jamal@siaagilesolutions.com" },
+    update: { role: "admin", active: true },
+    create: {
+      email: "jamal@siaagilesolutions.com",
+      passwordHash: jamalHash,
+      name: "Jamal",
+      role: "admin",
+      tenantId: tenant.id,
+    },
+  });
+
   console.log("\n✅ Seed terminé !\n");
-  console.log("Tenant créé :", tenant.name);
-  console.log("\nCompte administrateur :");
-  console.log("  Email    :", admin.email);
-  console.log("  Password : changeme123");
-  console.log("\nCompte test :");
-  console.log("  Email    :", testUser.email);
-  console.log("  Password : test123");
-  console.log("\n⚠️  Changez les mots de passe après le premier déploiement !\n");
+  console.log("Tenant:", tenant.name);
+  console.log("Admin 1:", admin.email, "/ changeme123");
+  console.log("Admin 2:", jamal.email, "/ changeme123");
+  console.log("Test user:", testUser.email, "/ test123");
 }
 
 main()
   .catch(console.error)
-  .finally(() => prisma.$disconnect());
+  .finally(async () => {
+    await prisma.$disconnect();
+    await pool.end();
+  });
