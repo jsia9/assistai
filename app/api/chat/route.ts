@@ -5,9 +5,8 @@ import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
 export async function POST(req: NextRequest) {
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const session = await getServerSession(authOptions);
   if (!session) return new Response("Unauthorized", { status: 401 });
 
@@ -53,7 +52,7 @@ export async function POST(req: NextRequest) {
         );
 
         const anthropicStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-sonnet-4-6",
           max_tokens: 4096,
           system: SYSTEM_PROMPT,
           messages,
