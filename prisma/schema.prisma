@@ -12,12 +12,13 @@ model Tenant {
   name              String
   plan              String    @default("starter")
   active            Boolean   @default(true)
-  monthlyTokenLimit Int       @default(500000)   // 500K tokens (~$5 cost, ~$25 billed at 5×)
-  systemPrompt      String?   @db.Text           // custom assistant instructions per tenant
+  monthlyTokenLimit Int       @default(500000)
+  systemPrompt      String?   @db.Text
   createdAt         DateTime  @default(now())
   users             User[]
   messages          Message[]
   payments          Payment[]
+  projects          Project[]
 }
 
 model User {
@@ -25,13 +26,40 @@ model User {
   email         String         @unique
   passwordHash  String
   name          String?
-  role          String         @default("user")
+  role          String         @default("user")   // "user" | "admin" | "superadmin"
   active        Boolean        @default(true)
   tenantId      String
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   conversations Conversation[]
+  projects      Project[]
   createdAt     DateTime       @default(now())
   lastActiveAt  DateTime       @default(now())
+}
+
+model Project {
+  id            String            @id @default(cuid())
+  name          String
+  instructions  String?           @db.Text   // custom system prompt for this project
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id])
+  documents     ProjectDocument[]
+  conversations Conversation[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model ProjectDocument {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name          String
+  content       String   @db.Text
+  mimeType      String?
+  sizeBytes     Int      @default(0)
+  tokenEstimate Int      @default(0)  // rough estimate: content.length / 4
+  createdAt     DateTime @default(now())
 }
 
 model Conversation {
@@ -39,6 +67,8 @@ model Conversation {
   title     String    @default("Nouvelle conversation")
   userId    String
   user      User      @relation(fields: [userId], references: [id])
+  projectId String?
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   messages  Message[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -61,11 +91,11 @@ model Payment {
   id          String   @id @default(cuid())
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  amount      Float                          // amount billed to client
+  amount      Float
   currency    String   @default("USD")
-  method      String   @default("manual")   // Wave | Orange Money | Bank Transfer | manual
-  reference   String?                        // payment ref / receipt number
-  period      String                         // "2026-04"
+  method      String   @default("manual")
+  reference   String?
+  period      String
   notes       String?
   paidAt      DateTime @default(now())
   createdById String?

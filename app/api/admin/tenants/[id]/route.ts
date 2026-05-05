@@ -7,7 +7,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "admin") {
+  // Only superadmin can mutate tenant-level settings
+  if (!session || session.user.role !== "superadmin") {
     return new Response("Forbidden", { status: 403 });
   }
 

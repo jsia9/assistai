@@ -5,6 +5,12 @@ import AdminDashboard from "@/components/AdminDashboard";
 
 export default async function AdminPage() {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "admin") redirect("/chat");
-  return <AdminDashboard />;
+  const role = session?.user.role ?? "";
+  if (!session || (role !== "admin" && role !== "superadmin")) redirect("/chat");
+  return (
+    <AdminDashboard
+      isSuperAdmin={role === "superadmin"}
+      sessionTenantId={session.user.tenantId}
+    />
+  );
 }

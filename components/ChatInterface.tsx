@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { MarkdownMessage } from "./MarkdownMessage";
+import ProjectPanel from "./ProjectPanel";
 
 interface Attachment {
   type: "image" | "text";
@@ -22,10 +23,18 @@ interface Conversation {
   id: string;
   title: string;
   updatedAt: string;
+  projectId: string | null;
+}
+
+interface ProjectSummary {
+  id: string;
+  name: string;
+  updatedAt: string;
+  documents: { id: string; name: string; tokenEstimate: number }[];
+  conversations: { id: string; title: string; updatedAt: string }[];
 }
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "AssistAI";
-
 const ACCEPTED_FILES =
   ".pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.html,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql,.jpg,.jpeg,.png,.gif,.webp";
 
@@ -36,60 +45,133 @@ export default function ChatInterface({
   userName: string;
   isAdmin: boolean;
 }) {
+  // ── Conversations & projects ─────────────────────────────────
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  // ── Current view ─────────────────────────────────────────────
+  const [view, setView] = useState<"chat" | "project">("chat");
+  const [viewProjectId, setViewProjectId] = useState<string | null>(null); // project panel
   const [currentConvId, setCurrentConvId] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null); // project context for chat
+
+  // ── Chat state ───────────────────────────────────────────────
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // ── UI ───────────────────────────────────────────────────────
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Loaders ──────────────────────────────────────────────────
   const loadConversations = useCallback(async () => {
     const res = await fetch("/api/conversations");
     if (res.ok) setConversations(await res.json());
   }, []);
 
-  useEffect(() => { loadConversations(); }, [loadConversations]);
+  const loadProjects = useCallback(async () => {
+    const res = await fetch("/api/projects");
+    if (res.ok) setProjects(await res.json());
+  }, []);
+
+  useEffect(() => {
+    loadConversations();
+    loadProjects();
+  }, [loadConversations, loadProjects]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function loadConversation(id: string) {
+  // ── Derive sidebar groupings ──────────────────────────────────
+  const noProjectConvs = conversations.filter((c) => !c.projectId);
+
+  // ── Conversation actions ──────────────────────────────────────
+  async function loadConversation(id: string, projId?: string | null) {
     const res = await fetch(`/api/conversations/${id}`);
     if (!res.ok) return;
     const data = await res.json();
     setCurrentConvId(id);
+    setCurrentProjectId(projId ?? data.projectId ?? null);
     setMessages(
       data.messages.map((m: { role: string; content: string }) => ({
         role: m.role,
         content: m.content,
       }))
     );
+    setView("chat");
     setSidebarOpen(false);
   }
 
-  function newConversation() {
+  function newConversation(projectId?: string) {
     setCurrentConvId(null);
+    setCurrentProjectId(projectId ?? null);
     setMessages([]);
     setPendingAttachments([]);
+    setView("chat");
     setSidebarOpen(false);
   }
 
-  // ── Core send logic (shared by sendMessage and regenerate) ─────
+  async function deleteConversation(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+    if (currentConvId === id) newConversation();
+    await loadConversations();
+  }
+
+  // ── Project actions ───────────────────────────────────────────
+  function openProject(id: string) {
+    setViewProjectId(id);
+    setView("project");
+    setSidebarOpen(false);
+  }
+
+  function toggleProjectExpand(id: string) {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function createProject() {
+    if (!newProjectName.trim()) return;
+    setCreatingProject(true);
+    const res = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: newProjectName.trim() }),
+    });
+    if (res.ok) {
+      const proj = await res.json();
+      await loadProjects();
+      setNewProjectName("");
+      setShowNewProject(false);
+      openProject(proj.id);
+    }
+    setCreatingProject(false);
+  }
+
+  // ── Core send logic ───────────────────────────────────────────
   async function doSend(
     text: string,
     attachs: Attachment[],
     convId: string | null,
+    projId: string | null,
     isRegen: boolean
   ) {
     setStreaming(true);
-
     setMessages((prev) => [
       ...prev,
       { role: "user", content: text, attachments: attachs },
@@ -105,16 +187,14 @@ export default function ChatInterface({
           message: text,
           attachments: attachs,
           regenerate: isRegen,
+          projectId: projId,
         }),
       });
 
       if (!res.ok || !res.body) {
         let errMsg = "Une erreur s'est produite. Veuillez réessayer.";
         if (res.status === 402) {
-          try {
-            const json = await res.json();
-            errMsg = json.message ?? errMsg;
-          } catch { /* ignore */ }
+          try { const json = await res.json(); errMsg = json.message ?? errMsg; } catch { /* ignore */ }
         }
         setMessages((prev) => {
           const copy = [...prev];
@@ -139,22 +219,14 @@ export default function ChatInterface({
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6);
-          if (raw === "[DONE]") {
-            await loadConversations();
-            break;
-          }
+          if (raw === "[DONE]") { await loadConversations(); break; }
           try {
             const payload = JSON.parse(raw);
-            if (payload.conversationId) {
-              setCurrentConvId(payload.conversationId);
-            }
+            if (payload.conversationId) setCurrentConvId(payload.conversationId);
             if (payload.text) {
               setMessages((prev) => {
                 const copy = [...prev];
-                copy[copy.length - 1] = {
-                  role: "assistant",
-                  content: copy[copy.length - 1].content + payload.text,
-                };
+                copy[copy.length - 1] = { role: "assistant", content: copy[copy.length - 1].content + payload.text };
                 return copy;
               });
             }
@@ -165,20 +237,16 @@ export default function ChatInterface({
                 return copy;
               });
             }
-          } catch { /* ignore parse errors */ }
+          } catch { /* ignore */ }
         }
       }
     } catch {
       setMessages((prev) => {
         const copy = [...prev];
-        copy[copy.length - 1] = {
-          role: "assistant",
-          content: "Connexion perdue. Vérifiez votre réseau et réessayez.",
-        };
+        copy[copy.length - 1] = { role: "assistant", content: "Connexion perdue. Vérifiez votre réseau et réessayez." };
         return copy;
       });
     }
-
     setStreaming(false);
   }
 
@@ -189,64 +257,42 @@ export default function ChatInterface({
     setInput("");
     setPendingAttachments([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    doSend(text, attachs, currentConvId, false);
+    doSend(text, attachs, currentConvId, currentProjectId, false);
   }
 
   function regenerate() {
     if (streaming || messages.length < 2) return;
     const copy = [...messages];
-    // Need last pair to be user + assistant
-    if (
-      copy[copy.length - 1].role !== "assistant" ||
-      copy[copy.length - 2].role !== "user"
-    ) return;
-    const lastUserMsg = copy[copy.length - 2];
-    // Remove the last user + assistant from UI
+    if (copy[copy.length - 1].role !== "assistant" || copy[copy.length - 2].role !== "user") return;
+    const lastUser = copy[copy.length - 2];
     setMessages(copy.slice(0, -2));
-    // Re-send (regenerate flag tells API to delete & re-create DB entries)
-    doSend(lastUserMsg.content, lastUserMsg.attachments ?? [], currentConvId, true);
+    doSend(lastUser.content, lastUser.attachments ?? [], currentConvId, currentProjectId, true);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   }
 
   function autoGrow(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
     const el = textareaRef.current;
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = Math.min(el.scrollHeight, 120) + "px";
-    }
+    if (el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 120) + "px"; }
   }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setUploading(true);
-
     for (const file of files) {
       const form = new FormData();
       form.append("file", file);
       try {
         const res = await fetch("/api/upload", { method: "POST", body: form });
-        if (res.ok) {
-          const att: Attachment = await res.json();
-          setPendingAttachments((prev) => [...prev, att]);
-        } else {
-          const msg = await res.text();
-          alert(`Erreur : ${msg}`);
-        }
-      } catch {
-        alert("Erreur lors du chargement du fichier.");
-      }
+        if (res.ok) { const att: Attachment = await res.json(); setPendingAttachments((prev) => [...prev, att]); }
+        else alert(`Erreur : ${await res.text()}`);
+      } catch { alert("Erreur lors du chargement du fichier."); }
     }
-
     setUploading(false);
-    // Reset input so the same file can be re-added
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -254,230 +300,312 @@ export default function ChatInterface({
     setPendingAttachments((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  async function deleteConversation(id: string, e: React.MouseEvent) {
-    e.stopPropagation();
-    await fetch(`/api/conversations/${id}`, { method: "DELETE" });
-    if (currentConvId === id) newConversation();
-    await loadConversations();
-  }
+  // ── Current project info (for chat header) ────────────────────
+  const currentProject = currentProjectId ? projects.find((p) => p.id === currentProjectId) : null;
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      {/* Sidebar overlay on mobile */}
+      {/* Sidebar overlay */}
       {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/30 z-10 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/30 z-10 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* Sidebar */}
-      <aside
-        className={`fixed lg:static inset-y-0 left-0 z-20 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-200 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0`}
-      >
-        <div className="p-4 border-b border-gray-100">
+      {/* ── Sidebar ─────────────────────────────────────────── */}
+      <aside className={`fixed lg:static inset-y-0 left-0 z-20 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <span className="font-bold text-indigo-600 text-lg">{APP_NAME}</span>
         </div>
 
-        <div className="p-3">
-          <button
-            onClick={newConversation}
-            className="w-full bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors"
-          >
-            + Nouvelle conversation
-          </button>
-        </div>
+        <nav className="flex-1 overflow-y-auto py-2">
 
-        <nav className="flex-1 overflow-y-auto px-2 space-y-0.5">
-          {conversations.map((c) => (
+          {/* New conversation (no project) */}
+          <div className="px-3 mb-2">
+            <button
+              onClick={() => newConversation()}
+              className="w-full bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors"
+            >
+              + Nouvelle conversation
+            </button>
+          </div>
+
+          {/* ── PROJECTS section ─────────────────────────── */}
+          <div className="px-3 mb-1 mt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-1">Projets</span>
+              <button
+                onClick={() => setShowNewProject((v) => !v)}
+                className="text-indigo-500 hover:text-indigo-700 text-xs px-1"
+                title="Nouveau projet"
+              >
+                +
+              </button>
+            </div>
+
+            {showNewProject && (
+              <div className="mt-1.5 flex gap-1">
+                <input
+                  autoFocus
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") createProject(); if (e.key === "Escape") { setShowNewProject(false); setNewProjectName(""); } }}
+                  placeholder="Nom du projet…"
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                />
+                <button
+                  onClick={createProject}
+                  disabled={creatingProject || !newProjectName.trim()}
+                  className="text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg disabled:opacity-50"
+                >
+                  ✓
+                </button>
+              </div>
+            )}
+          </div>
+
+          {projects.length === 0 && (
+            <p className="text-xs text-gray-400 px-4 py-1">Aucun projet</p>
+          )}
+
+          {projects.map((proj) => {
+            const projConvs = conversations.filter((c) => c.projectId === proj.id);
+            const isExpanded = expandedProjects.has(proj.id);
+            return (
+              <div key={proj.id}>
+                <div
+                  className={`group flex items-center gap-1 px-3 py-1.5 cursor-pointer rounded-lg mx-1 text-sm ${view === "project" && viewProjectId === proj.id ? "bg-indigo-50 text-indigo-700" : "text-gray-700 hover:bg-gray-100"}`}
+                >
+                  <button
+                    onClick={() => toggleProjectExpand(proj.id)}
+                    className="text-gray-400 hover:text-gray-600 w-4 flex-shrink-0 text-center"
+                  >
+                    {isExpanded ? "▾" : "▸"}
+                  </button>
+                  <span
+                    className="flex-1 truncate font-medium text-sm"
+                    onClick={() => openProject(proj.id)}
+                  >
+                    📁 {proj.name}
+                  </span>
+                  <button
+                    onClick={() => { newConversation(proj.id); if (!isExpanded) toggleProjectExpand(proj.id); }}
+                    className="opacity-0 group-hover:opacity-100 text-indigo-500 hover:text-indigo-700 text-xs"
+                    title="Nouvelle conversation dans ce projet"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {isExpanded && (
+                  <div className="ml-6 border-l border-gray-200 pl-2 space-y-0.5 mb-1">
+                    {projConvs.length === 0 && (
+                      <p className="text-xs text-gray-400 px-2 py-1">Aucune conversation</p>
+                    )}
+                    {projConvs.map((c) => (
+                      <div
+                        key={c.id}
+                        onClick={() => loadConversation(c.id, proj.id)}
+                        className={`group flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer text-xs ${currentConvId === c.id && view === "chat" ? "bg-indigo-50 text-indigo-700" : "text-gray-600 hover:bg-gray-100"}`}
+                      >
+                        <span className="truncate flex-1">{c.title}</span>
+                        <button
+                          onClick={(e) => deleteConversation(c.id, e)}
+                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 ml-1"
+                        >✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {/* ── CONVERSATIONS section ─────────────────────── */}
+          {noProjectConvs.length > 0 && (
+            <div className="mt-3 px-3 mb-1">
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-1">Conversations</span>
+            </div>
+          )}
+
+          {noProjectConvs.map((c) => (
             <div
               key={c.id}
               onClick={() => loadConversation(c.id)}
-              className={`group flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm ${
-                currentConvId === c.id
-                  ? "bg-indigo-50 text-indigo-700"
-                  : "text-gray-700 hover:bg-gray-100"
-              }`}
+              className={`group flex items-center justify-between px-3 py-2 mx-1 rounded-lg cursor-pointer text-sm ${currentConvId === c.id && view === "chat" ? "bg-indigo-50 text-indigo-700" : "text-gray-700 hover:bg-gray-100"}`}
             >
               <span className="truncate flex-1">{c.title}</span>
               <button
                 onClick={(e) => deleteConversation(c.id, e)}
                 className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 ml-1 text-xs px-1"
-                title="Supprimer"
-              >
-                ✕
-              </button>
+              >✕</button>
             </div>
           ))}
-          {conversations.length === 0 && (
-            <p className="text-xs text-gray-400 px-3 py-4 text-center">
-              Aucune conversation
-            </p>
+
+          {conversations.length === 0 && projects.length === 0 && (
+            <p className="text-xs text-gray-400 px-4 py-4 text-center">Aucune conversation</p>
           )}
         </nav>
 
+        {/* Footer */}
         <div className="p-3 border-t border-gray-100 space-y-1">
           {isAdmin && (
-            <Link
-              href="/admin"
-              className="block w-full text-center text-xs text-indigo-600 hover:underline py-1"
-            >
+            <Link href="/admin" className="block w-full text-center text-xs text-indigo-600 hover:underline py-1">
               Administration
             </Link>
           )}
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 truncate flex-1">{userName}</span>
-            <button
-              onClick={() => signOut({ callbackUrl: "/" })}
-              className="text-xs text-gray-500 hover:text-red-500 ml-2"
-            >
+            <button onClick={() => signOut({ callbackUrl: "/" })} className="text-xs text-gray-500 hover:text-red-500 ml-2">
               Déconnexion
             </button>
           </div>
         </div>
       </aside>
 
-      {/* Main chat area */}
+      {/* ── Main area ────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile header */}
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200">
-          <button
-            onClick={() => setSidebarOpen(true)}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            ☰
-          </button>
+          <button onClick={() => setSidebarOpen(true)} className="text-gray-500 hover:text-gray-700">☰</button>
           <span className="font-semibold text-gray-800">{APP_NAME}</span>
         </header>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 space-y-2">
-              <div className="text-4xl">💬</div>
-              <p className="text-base font-medium text-gray-500">
-                Bonjour ! Comment puis-je vous aider ?
-              </p>
-              <p className="text-sm">
-                Posez une question, joignez un fichier ou démarrez une conversation.
-              </p>
-            </div>
-          )}
-
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
-            >
-              {m.role === "user" ? (
-                <UserBubble message={m} />
-              ) : (
-                <AssistantBubble
-                  message={m}
-                  isLast={i === messages.length - 1}
-                  streaming={streaming}
-                  onRegenerate={regenerate}
-                />
-              )}
-            </div>
-          ))}
-
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Pending attachments preview */}
-        {pendingAttachments.length > 0 && (
-          <div className="px-4 pt-2 bg-white border-t border-gray-100">
-            <div className="max-w-3xl mx-auto flex flex-wrap gap-2">
-              {pendingAttachments.map((att, idx) => (
-                <AttachmentChip
-                  key={idx}
-                  attachment={att}
-                  onRemove={() => removeAttachment(idx)}
-                />
-              ))}
-            </div>
-          </div>
+        {/* ── PROJECT PANEL view ────────────────────────────── */}
+        {view === "project" && viewProjectId && (
+          <ProjectPanel
+            projectId={viewProjectId}
+            onBack={() => setView("chat")}
+            onStartConversation={(projId) => newConversation(projId)}
+            onProjectDeleted={async () => {
+              await loadProjects();
+              await loadConversations();
+              setView("chat");
+              setViewProjectId(null);
+            }}
+            onProjectUpdated={async () => {
+              await loadProjects();
+            }}
+          />
         )}
 
-        {/* Input area */}
-        <div className="border-t border-gray-200 bg-white px-4 py-3">
-          <div className="flex items-end gap-2 max-w-3xl mx-auto">
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={ACCEPTED_FILES}
-              className="hidden"
-              onChange={handleFileSelect}
-            />
+        {/* ── CHAT view ─────────────────────────────────────── */}
+        {view === "chat" && (
+          <>
+            {/* Project context banner */}
+            {currentProject && (
+              <div className="bg-indigo-50 border-b border-indigo-100 px-4 py-2 flex items-center gap-2 text-sm">
+                <span className="text-indigo-500">📁</span>
+                <span className="text-indigo-700 font-medium">{currentProject.name}</span>
+                <span className="text-indigo-400 text-xs ml-auto">
+                  {currentProject.documents.length} doc{currentProject.documents.length !== 1 ? "s" : ""} · contexte actif
+                </span>
+                <button
+                  onClick={() => openProject(currentProject.id)}
+                  className="text-xs text-indigo-600 hover:underline ml-2"
+                >
+                  ⚙ Gérer
+                </button>
+              </div>
+            )}
 
-            {/* Attachment button */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={streaming || uploading}
-              title="Joindre un fichier (PDF, Word, Excel, image…)"
-              className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl border transition-colors ${
-                uploading
-                  ? "border-indigo-300 text-indigo-400 animate-pulse"
-                  : "border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600"
-              } disabled:opacity-40`}
-            >
-              {uploading ? "⏳" : "📎"}
-            </button>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+              {messages.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 space-y-2">
+                  <div className="text-4xl">{currentProject ? "📁" : "💬"}</div>
+                  <p className="text-base font-medium text-gray-500">
+                    {currentProject
+                      ? `Projet : ${currentProject.name}`
+                      : "Bonjour ! Comment puis-je vous aider ?"}
+                  </p>
+                  <p className="text-sm">
+                    {currentProject
+                      ? `${currentProject.documents.length} document(s) disponible(s) dans le contexte.`
+                      : "Posez une question, joignez un fichier ou démarrez une conversation."}
+                  </p>
+                </div>
+              )}
 
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={autoGrow}
-              onKeyDown={handleKeyDown}
-              rows={1}
-              disabled={streaming}
-              placeholder="Tapez votre message… (Entrée pour envoyer, Maj+Entrée pour un saut de ligne)"
-              className="flex-1 resize-none border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50 max-h-28 leading-relaxed"
-            />
-            <button
-              onClick={sendMessage}
-              disabled={streaming || (!input.trim() && pendingAttachments.length === 0)}
-              className="bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 flex-shrink-0"
-            >
-              {streaming ? "..." : "Envoyer"}
-            </button>
-          </div>
-        </div>
+              {messages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {m.role === "user" ? (
+                    <UserBubble message={m} />
+                  ) : (
+                    <AssistantBubble
+                      message={m}
+                      isLast={i === messages.length - 1}
+                      streaming={streaming}
+                      onRegenerate={regenerate}
+                    />
+                  )}
+                </div>
+              ))}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Pending attachments */}
+            {pendingAttachments.length > 0 && (
+              <div className="px-4 pt-2 bg-white border-t border-gray-100">
+                <div className="max-w-3xl mx-auto flex flex-wrap gap-2">
+                  {pendingAttachments.map((att, idx) => (
+                    <AttachmentChip key={idx} attachment={att} onRemove={() => removeAttachment(idx)} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Input */}
+            <div className="border-t border-gray-200 bg-white px-4 py-3">
+              <div className="flex items-end gap-2 max-w-3xl mx-auto">
+                <input ref={fileInputRef} type="file" multiple accept={ACCEPTED_FILES} className="hidden" onChange={handleFileSelect} />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={streaming || uploading}
+                  title="Joindre un fichier"
+                  className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl border transition-colors ${uploading ? "border-indigo-300 text-indigo-400 animate-pulse" : "border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600"} disabled:opacity-40`}
+                >
+                  {uploading ? "⏳" : "📎"}
+                </button>
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={autoGrow}
+                  onKeyDown={handleKeyDown}
+                  rows={1}
+                  disabled={streaming}
+                  placeholder="Tapez votre message… (Entrée pour envoyer)"
+                  className="flex-1 resize-none border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50 max-h-28 leading-relaxed"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={streaming || (!input.trim() && pendingAttachments.length === 0)}
+                  className="bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 flex-shrink-0"
+                >
+                  {streaming ? "..." : "Envoyer"}
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-/* ── User message bubble ─────────────────────────────────────────── */
+/* ── Sub-components ──────────────────────────────────────────────── */
 function UserBubble({ message }: { message: Message }) {
   const images = message.attachments?.filter((a) => a.type === "image") ?? [];
   const files = message.attachments?.filter((a) => a.type === "text") ?? [];
-
   return (
     <div className="max-w-[85%] sm:max-w-[70%] space-y-1.5">
-      {/* Image previews */}
       {images.map((img, i) => (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={i}
-          src={`data:${img.mimeType};base64,${img.content}`}
-          alt={img.name}
-          className="rounded-xl max-h-64 w-auto block ml-auto"
-        />
+        <img key={i} src={`data:${img.mimeType};base64,${img.content}`} alt={img.name} className="rounded-xl max-h-64 w-auto block ml-auto" />
       ))}
-      {/* File badges */}
       {files.map((f, i) => (
         <div key={i} className="flex items-center gap-1.5 bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-xl ml-auto w-fit">
-          <span>📄</span>
-          <span className="truncate max-w-[200px]">{f.name}</span>
+          <span>📄</span><span className="truncate max-w-[200px]">{f.name}</span>
         </div>
       ))}
-      {/* Text */}
       {message.content && (
         <div className="bg-indigo-600 text-white rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
           {message.content}
@@ -487,52 +615,23 @@ function UserBubble({ message }: { message: Message }) {
   );
 }
 
-/* ── Assistant message bubble ────────────────────────────────────── */
-function AssistantBubble({
-  message,
-  isLast,
-  streaming,
-  onRegenerate,
-}: {
-  message: Message;
-  isLast: boolean;
-  streaming: boolean;
-  onRegenerate: () => void;
+function AssistantBubble({ message, isLast, streaming, onRegenerate }: {
+  message: Message; isLast: boolean; streaming: boolean; onRegenerate: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
+  function handleCopy() { navigator.clipboard.writeText(message.content); setCopied(true); setTimeout(() => setCopied(false), 2000); }
   return (
     <div className="max-w-[85%] sm:max-w-[75%] group">
       <div className="bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-bl-sm shadow-sm px-4 py-3">
-        {message.content === "" && isLast && streaming ? (
-          <TypingIndicator />
-        ) : (
-          <MarkdownMessage content={message.content} />
-        )}
+        {message.content === "" && isLast && streaming ? <TypingIndicator /> : <MarkdownMessage content={message.content} />}
       </div>
-
-      {/* Action toolbar — appears on hover or when this is the last message */}
       {message.content && (
-        <div className={`flex items-center gap-1 mt-1 transition-opacity ${
-          isLast ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        }`}>
-          <button
-            onClick={handleCopy}
-            className="text-xs text-gray-400 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-100 transition-colors"
-          >
+        <div className={`flex items-center gap-1 mt-1 transition-opacity ${isLast ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+          <button onClick={handleCopy} className="text-xs text-gray-400 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-100 transition-colors">
             {copied ? "✓ Copié" : "📋 Copier"}
           </button>
           {isLast && !streaming && (
-            <button
-              onClick={onRegenerate}
-              className="text-xs text-gray-400 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-100 transition-colors"
-            >
+            <button onClick={onRegenerate} className="text-xs text-gray-400 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-100 transition-colors">
               🔄 Régénérer
             </button>
           )}
@@ -542,48 +641,24 @@ function AssistantBubble({
   );
 }
 
-/* ── Attachment chip (in input area preview) ─────────────────────── */
-function AttachmentChip({
-  attachment,
-  onRemove,
-}: {
-  attachment: Attachment;
-  onRemove: () => void;
-}) {
+function AttachmentChip({ attachment, onRemove }: { attachment: Attachment; onRemove: () => void }) {
   if (attachment.type === "image") {
     return (
       <div className="relative group">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={`data:${attachment.mimeType};base64,${attachment.content}`}
-          alt={attachment.name}
-          className="h-12 w-12 object-cover rounded-lg border border-gray-200"
-        />
-        <button
-          onClick={onRemove}
-          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          ✕
-        </button>
+        <img src={`data:${attachment.mimeType};base64,${attachment.content}`} alt={attachment.name} className="h-12 w-12 object-cover rounded-lg border border-gray-200" />
+        <button onClick={onRemove} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">✕</button>
       </div>
     );
   }
-
   return (
     <div className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 max-w-[160px]">
-      <span>📄</span>
-      <span className="truncate">{attachment.name}</span>
-      <button
-        onClick={onRemove}
-        className="text-gray-400 hover:text-red-500 ml-0.5 flex-shrink-0"
-      >
-        ✕
-      </button>
+      <span>📄</span><span className="truncate">{attachment.name}</span>
+      <button onClick={onRemove} className="text-gray-400 hover:text-red-500 ml-0.5 flex-shrink-0">✕</button>
     </div>
   );
 }
 
-/* ── Typing indicator ────────────────────────────────────────────── */
 function TypingIndicator() {
   return (
     <span className="flex gap-1 items-center h-4">

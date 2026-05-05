@@ -7,9 +7,13 @@ const MARKUP = 5;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "admin") {
+  const role = session?.user.role ?? "";
+  if (!session || (role !== "admin" && role !== "superadmin")) {
     return new Response("Forbidden", { status: 403 });
   }
+
+  // Company admin only sees their own tenant; superadmin sees all
+  const tenantFilter = role === "superadmin" ? undefined : { id: session.user.tenantId };
 
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
@@ -21,6 +25,7 @@ export async function GET() {
   const [tenants, users, monthlyMessages, recentMessages, payments] =
     await Promise.all([
       prisma.tenant.findMany({
+        where: tenantFilter,
         include: {
           users: { select: { id: true, email: true, lastActiveAt: true } },
           messages: {
@@ -34,6 +39,7 @@ export async function GET() {
         },
       }),
       prisma.user.findMany({
+        where: tenantFilter ? { tenantId: tenantFilter.id } : undefined,
         select: {
           id: true,
           email: true,
@@ -50,13 +56,22 @@ export async function GET() {
         },
       }),
       prisma.message.count({
-        where: { createdAt: { gte: startOfMonth }, role: "user" },
+        where: {
+          createdAt: { gte: startOfMonth },
+          role: "user",
+          ...(tenantFilter ? { tenantId: tenantFilter.id } : {}),
+        },
       }),
       prisma.message.findMany({
-        where: { createdAt: { gte: thirtyDaysAgo }, role: "user" },
+        where: {
+          createdAt: { gte: thirtyDaysAgo },
+          role: "user",
+          ...(tenantFilter ? { tenantId: tenantFilter.id } : {}),
+        },
         select: { createdAt: true },
       }),
       prisma.payment.findMany({
+        where: tenantFilter ? { tenantId: tenantFilter.id } : undefined,
         orderBy: { paidAt: "desc" },
         take: 50,
         include: { tenant: { select: { name: true } } },

@@ -11,7 +11,7 @@ const MARKUP = 5;
 interface Attachment {
   type: "image" | "text";
   name: string;
-  content: string;   // base64 for images, plain text for text
+  content: string;
   mimeType?: string;
 }
 
@@ -21,11 +21,18 @@ export async function POST(req: NextRequest) {
   if (!session) return new Response("Unauthorized", { status: 401 });
 
   const body = await req.json();
-  const { conversationId, message, attachments = [], regenerate = false } = body as {
+  const {
+    conversationId,
+    message,
+    attachments = [],
+    regenerate = false,
+    projectId: bodyProjectId = null,
+  } = body as {
     conversationId: string | null;
     message: string;
     attachments: Attachment[];
     regenerate: boolean;
+    projectId: string | null;
   };
 
   if (!message?.trim()) return new Response("Message requis", { status: 400 });
@@ -61,18 +68,30 @@ export async function POST(req: NextRequest) {
       { status: 402, headers: { "Content-Type": "application/json" } }
     );
   }
-  // ─────────────────────────────────────────────────────────────
 
+  // ── Conversation setup ────────────────────────────────────────
   let convId = conversationId as string | null;
+  let resolvedProjectId: string | null = bodyProjectId;
 
   if (!convId) {
     const conv = await prisma.conversation.create({
-      data: { userId, title: message.slice(0, 40) },
+      data: {
+        userId,
+        title: message.slice(0, 40),
+        ...(resolvedProjectId && { projectId: resolvedProjectId }),
+      },
     });
     convId = conv.id;
+  } else {
+    // Inherit projectId from existing conversation
+    const existingConv = await prisma.conversation.findFirst({
+      where: { id: convId, userId },
+      select: { projectId: true },
+    });
+    if (existingConv?.projectId) resolvedProjectId = existingConv.projectId;
   }
 
-  // ── If regenerating, remove the last user+assistant pair ───────
+  // ── Regenerate: delete last user+assistant pair ───────────────
   if (regenerate && convId) {
     const last2 = await prisma.message.findMany({
       where: { conversationId: convId },
@@ -86,29 +105,43 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Build conversation history ─────────────────────────────────
+  // ── Load project context ──────────────────────────────────────
+  let projectSystemPrompt: string | null = null;
+  if (resolvedProjectId) {
+    const project = await prisma.project.findFirst({
+      where: { id: resolvedProjectId, userId },
+      include: { documents: { select: { name: true, content: true }, orderBy: { createdAt: "asc" } } },
+    });
+    if (project) {
+      const parts: string[] = [];
+      if (project.instructions?.trim()) {
+        parts.push(project.instructions.trim());
+      }
+      if (project.documents.length > 0) {
+        const docsBlock = project.documents
+          .map((d) => `### ${d.name}\n\n${d.content}`)
+          .join("\n\n---\n\n");
+        parts.push(`=== DOCUMENTS DU PROJET ===\n\n${docsBlock}`);
+      }
+      if (parts.length > 0) projectSystemPrompt = parts.join("\n\n");
+    }
+  }
+
+  // ── Build history ─────────────────────────────────────────────
   const history = await prisma.message.findMany({
     where: { conversationId: convId },
     orderBy: { createdAt: "asc" },
     take: 20,
   });
 
-  // ── Build the user content block ──────────────────────────────
+  // ── Build user content block ──────────────────────────────────
   type ContentBlock = Anthropic.TextBlockParam | Anthropic.ImageBlockParam;
   const userContent: ContentBlock[] = [];
 
-  // Text attachments: prepend as context
-  const textAttachments = attachments.filter((a) => a.type === "text");
-  for (const att of textAttachments) {
-    userContent.push({
-      type: "text",
-      text: `[Fichier joint : ${att.name}]\n\n${att.content}\n\n---`,
-    });
+  for (const att of attachments.filter((a) => a.type === "text")) {
+    userContent.push({ type: "text", text: `[Fichier joint : ${att.name}]\n\n${att.content}\n\n---` });
   }
-
-  // Image attachments: add as image blocks
-  const imageAttachments = attachments.filter((a) => a.type === "image");
-  for (const att of imageAttachments) {
+  for (const att of attachments.filter((a) => a.type === "image")) {
     userContent.push({
       type: "image",
       source: {
@@ -118,11 +151,8 @@ export async function POST(req: NextRequest) {
       },
     });
   }
-
-  // The actual user text
   userContent.push({ type: "text", text: message });
 
-  // ── Build messages array for Anthropic ────────────────────────
   const messages: Anthropic.MessageParam[] = [
     ...history.map((m: { role: string; content: string }) => ({
       role: m.role as "user" | "assistant",
@@ -134,14 +164,16 @@ export async function POST(req: NextRequest) {
     },
   ];
 
-  // ── Determine system prompt (tenant-specific overrides global) ─
+  // ── System prompt: project > tenant > global ──────────────────
   const systemPrompt =
-    (tenant?.systemPrompt ?? "").trim() || SYSTEM_PROMPT;
+    projectSystemPrompt ||
+    (tenant?.systemPrompt?.trim() || null) ||
+    SYSTEM_PROMPT;
 
-  // ── Build stored user message content ─────────────────────────
+  // ── Stored content (no base64 images in DB) ───────────────────
   const storedUserContent =
-    textAttachments.map((a) => `[Fichier : ${a.name}]\n${a.content}\n---\n`).join("") +
-    imageAttachments.map((a) => `[Image : ${a.name}]\n`).join("") +
+    attachments.filter((a) => a.type === "text").map((a) => `[Fichier : ${a.name}]\n${a.content}\n---\n`).join("") +
+    attachments.filter((a) => a.type === "image").map((a) => `[Image : ${a.name}]\n`).join("") +
     message;
 
   const encoder = new TextEncoder();
@@ -164,69 +196,36 @@ export async function POST(req: NextRequest) {
         });
 
         for await (const event of anthropicStream) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
+          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
             fullContent += event.delta.text;
             controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({ text: event.delta.text })}\n\n`
-              )
+              encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`)
             );
           }
-          if (event.type === "message_delta" && event.usage) {
-            outputTokens = event.usage.output_tokens;
-          }
-          if (event.type === "message_start" && event.message.usage) {
-            inputTokens = event.message.usage.input_tokens;
-          }
+          if (event.type === "message_delta" && event.usage) outputTokens = event.usage.output_tokens;
+          if (event.type === "message_start" && event.message.usage) inputTokens = event.message.usage.input_tokens;
         }
 
         await prisma.message.createMany({
           data: [
-            {
-              conversationId: convId!,
-              tenantId,
-              role: "user",
-              content: storedUserContent,
-              promptTokens: inputTokens,
-              completionTokens: 0,
-            },
-            {
-              conversationId: convId!,
-              tenantId,
-              role: "assistant",
-              content: fullContent,
-              promptTokens: 0,
-              completionTokens: outputTokens,
-            },
+            { conversationId: convId!, tenantId, role: "user", content: storedUserContent, promptTokens: inputTokens, completionTokens: 0 },
+            { conversationId: convId!, tenantId, role: "assistant", content: fullContent, promptTokens: 0, completionTokens: outputTokens },
           ],
         });
 
-        const conv = await prisma.conversation.findUnique({
-          where: { id: convId! },
-        });
+        const conv = await prisma.conversation.findUnique({ where: { id: convId! } });
         if (conv?.title === "Nouvelle conversation") {
-          await prisma.conversation.update({
-            where: { id: convId! },
-            data: { title: message.slice(0, 40) },
-          });
+          await prisma.conversation.update({ where: { id: convId! }, data: { title: message.slice(0, 40) } });
         }
 
-        await prisma.user.update({
-          where: { id: userId },
-          data: { lastActiveAt: new Date() },
-        });
+        await prisma.user.update({ where: { id: userId }, data: { lastActiveAt: new Date() } });
 
         controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
         controller.close();
       } catch (err) {
         console.error("Chat API error:", err);
         controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({ error: "Une erreur s'est produite. Veuillez réessayer." })}\n\n`
-          )
+          encoder.encode(`data: ${JSON.stringify({ error: "Une erreur s'est produite. Veuillez réessayer." })}\n\n`)
         );
         controller.close();
       }
@@ -234,10 +233,6 @@ export async function POST(req: NextRequest) {
   });
 
   return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
+    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
   });
 }

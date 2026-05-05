@@ -36,7 +36,13 @@ interface Stats {
   payments: PaymentRow[];
 }
 
-export default function AdminDashboard() {
+export default function AdminDashboard({
+  isSuperAdmin = false,
+  sessionTenantId = "",
+}: {
+  isSuperAdmin?: boolean;
+  sessionTenantId?: string;
+}) {
   const [stats, setStats] = useState<Stats | null>(null);
   const [tab, setTab] = useState<"users" | "usage" | "billing">("users");
   const [loading, setLoading] = useState(true);
@@ -85,9 +91,9 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {tab === "users" && <UsersTab users={stats.users} onToggle={toggleUser} />}
-          {tab === "usage" && <UsageTab stats={stats} onRefresh={load} />}
-          {tab === "billing" && <BillingTab stats={stats} onRefresh={load} />}
+          {tab === "users" && <UsersTab users={stats.users} onToggle={toggleUser} isSuperAdmin={isSuperAdmin} sessionTenantId={sessionTenantId} onRefresh={load} />}
+          {tab === "usage" && <UsageTab stats={stats} onRefresh={load} isSuperAdmin={isSuperAdmin} />}
+          {tab === "billing" && <BillingTab stats={stats} onRefresh={load} isSuperAdmin={isSuperAdmin} />}
         </div>
       </main>
     </div>
@@ -95,27 +101,61 @@ export default function AdminDashboard() {
 }
 
 /* ── Users tab ──────────────────────────────────────────────────── */
-function UsersTab({ users, onToggle }: { users: UserRow[]; onToggle: (id: string) => void }) {
+function UsersTab({
+  users,
+  onToggle,
+  isSuperAdmin,
+  sessionTenantId,
+  onRefresh,
+}: {
+  users: UserRow[];
+  onToggle: (id: string) => void;
+  isSuperAdmin: boolean;
+  sessionTenantId: string;
+  onRefresh: () => void;
+}) {
+  const [pwdUserId, setPwdUserId] = useState<string | null>(null);
+  const [pwdValue, setPwdValue] = useState("");
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [pwdError, setPwdError] = useState("");
+
+  async function savePassword() {
+    if (pwdValue.length < 6) { setPwdError("Minimum 6 caractères"); return; }
+    setPwdSaving(true);
+    const res = await fetch(`/api/admin/users/${pwdUserId}/password`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pwdValue }),
+    });
+    setPwdSaving(false);
+    if (res.ok) { setPwdUserId(null); setPwdValue(""); setPwdError(""); onRefresh(); }
+    else setPwdError(await res.text());
+  }
+
+  // Company admins only see their own tenant's users
+  const visible = isSuperAdmin ? users : users.filter((u) => u.tenantId === sessionTenantId);
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
           <tr>
             <th className="px-4 py-3 text-left">Email</th>
-            <th className="px-4 py-3 text-left">Entreprise</th>
+            {isSuperAdmin && <th className="px-4 py-3 text-left">Entreprise</th>}
             <th className="px-4 py-3 text-left">Rôle</th>
             <th className="px-4 py-3 text-left">Messages/mois</th>
             <th className="px-4 py-3 text-left">Dernière activité</th>
             <th className="px-4 py-3 text-left">Statut</th>
+            <th className="px-4 py-3 text-left">Mot de passe</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
-          {users.map((u) => (
+          {visible.map((u) => (
             <tr key={u.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium text-gray-900">{u.email}</td>
-              <td className="px-4 py-3 text-gray-600">{u.tenant.name}</td>
+              {isSuperAdmin && <td className="px-4 py-3 text-gray-600">{u.tenant.name}</td>}
               <td className="px-4 py-3">
-                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.role === "admin" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"}`}>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.role === "superadmin" ? "bg-red-100 text-red-700" : u.role === "admin" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-600"}`}>
                   {u.role}
                 </span>
               </td>
@@ -127,16 +167,56 @@ function UsersTab({ users, onToggle }: { users: UserRow[]; onToggle: (id: string
                   {u.active ? "Actif" : "Suspendu"}
                 </button>
               </td>
+              <td className="px-4 py-3">
+                <button
+                  onClick={() => { setPwdUserId(u.id); setPwdValue(""); setPwdError(""); }}
+                  className="text-xs text-gray-500 hover:text-indigo-600 px-2 py-1 rounded hover:bg-indigo-50"
+                >
+                  🔑 Modifier
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {/* Password change modal */}
+      {pwdUserId && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Nouveau mot de passe</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              {visible.find((u) => u.id === pwdUserId)?.email}
+            </p>
+            <input
+              type="password"
+              autoFocus
+              value={pwdValue}
+              onChange={(e) => { setPwdValue(e.target.value); setPwdError(""); }}
+              onKeyDown={(e) => { if (e.key === "Enter") savePassword(); }}
+              placeholder="Nouveau mot de passe (min. 6 caractères)"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 mb-1"
+            />
+            {pwdError && <p className="text-xs text-red-600 mb-2">{pwdError}</p>}
+            <div className="flex gap-3 mt-3">
+              <button onClick={() => { setPwdUserId(null); setPwdValue(""); setPwdError(""); }}
+                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 text-sm hover:bg-gray-50">
+                Annuler
+              </button>
+              <button onClick={savePassword} disabled={pwdSaving || !pwdValue}
+                className="flex-1 bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                {pwdSaving ? "Sauvegarde…" : "Enregistrer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ── Usage tab ──────────────────────────────────────────────────── */
-function UsageTab({ stats, onRefresh }: { stats: Stats; onRefresh: () => void }) {
+function UsageTab({ stats, onRefresh, isSuperAdmin }: { stats: Stats; onRefresh: () => void; isSuperAdmin: boolean }) {
   const [configId, setConfigId] = useState<string | null>(null);
   const [configForm, setConfigForm] = useState({ systemPrompt: "", plan: "starter" });
   const [saving, setSaving] = useState(false);
@@ -184,12 +264,14 @@ function UsageTab({ stats, onRefresh }: { stats: Stats; onRefresh: () => void })
                   <span className={`text-xs px-2 py-0.5 rounded-full ${t.pctUsed >= 90 ? "bg-red-100 text-red-700" : t.pctUsed >= 70 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>
                     {t.pctUsed.toFixed(0)}% utilisé
                   </span>
-                  <button
-                    onClick={() => configId === t.id ? setConfigId(null) : openConfig(t)}
-                    className="text-xs text-indigo-600 hover:underline"
-                  >
-                    {configId === t.id ? "Fermer" : "⚙ Configurer"}
-                  </button>
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => configId === t.id ? setConfigId(null) : openConfig(t)}
+                      className="text-xs text-indigo-600 hover:underline"
+                    >
+                      {configId === t.id ? "Fermer" : "⚙ Configurer"}
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
@@ -257,7 +339,7 @@ function UsageTab({ stats, onRefresh }: { stats: Stats; onRefresh: () => void })
 }
 
 /* ── Billing tab ────────────────────────────────────────────────── */
-function BillingTab({ stats, onRefresh }: { stats: Stats; onRefresh: () => void }) {
+function BillingTab({ stats, onRefresh, isSuperAdmin }: { stats: Stats; onRefresh: () => void; isSuperAdmin: boolean }) {
   const [showForm, setShowForm] = useState(false);
   const [editQuota, setEditQuota] = useState<{ id: string; name: string; limit: number } | null>(null);
   const [form, setForm] = useState({ tenantId: "", amount: "", currency: "USD", method: "Wave", reference: "", period: new Date().toISOString().slice(0, 7), notes: "" });
@@ -299,9 +381,11 @@ function BillingTab({ stats, onRefresh }: { stats: Stats; onRefresh: () => void 
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700">Résumé facturation — {currentPeriod}</h3>
-          <button onClick={() => setShowForm(true)} className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-700">
-            + Enregistrer un paiement
-          </button>
+          {isSuperAdmin && (
+            <button onClick={() => setShowForm(true)} className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-indigo-700">
+              + Enregistrer un paiement
+            </button>
+          )}
         </div>
 
         <div className="overflow-x-auto">

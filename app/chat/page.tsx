@@ -9,8 +9,8 @@ export default async function ChatPage() {
 
   return (
     <ChatInterface
-      userName={session.user.name ?? session.user.email}
-      isAdmin={session.user.role === "admin"}
+      userName={session.user.name ?? session.user.email ?? ""}
+      isAdmin={session.user.role === "admin" || session.user.role === "superadmin"}
     />
   );
 }
