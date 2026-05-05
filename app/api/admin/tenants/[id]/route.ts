@@ -22,6 +22,7 @@ export async function PATCH(
       }),
       ...(body.plan !== undefined && { plan: body.plan }),
       ...(body.active !== undefined && { active: body.active }),
+      ...(body.systemPrompt !== undefined && { systemPrompt: body.systemPrompt }),
     },
   });
 

@@ -13,6 +13,7 @@ model Tenant {
   plan              String    @default("starter")
   active            Boolean   @default(true)
   monthlyTokenLimit Int       @default(500000)   // 500K tokens (~$5 cost, ~$25 billed at 5×)
+  systemPrompt      String?   @db.Text           // custom assistant instructions per tenant
   createdAt         DateTime  @default(now())
   users             User[]
   messages          Message[]

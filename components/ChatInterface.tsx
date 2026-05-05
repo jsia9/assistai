@@ -3,10 +3,19 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { signOut } from "next-auth/react";
 import Link from "next/link";
+import { MarkdownMessage } from "./MarkdownMessage";
+
+interface Attachment {
+  type: "image" | "text";
+  name: string;
+  content: string;
+  mimeType?: string;
+}
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  attachments?: Attachment[];
 }
 
 interface Conversation {
@@ -16,6 +25,9 @@ interface Conversation {
 }
 
 const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "AssistAI";
+
+const ACCEPTED_FILES =
+  ".pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.html,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql,.jpg,.jpeg,.png,.gif,.webp";
 
 export default function ChatInterface({
   userName,
@@ -30,17 +42,19 @@ export default function ChatInterface({
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadConversations = useCallback(async () => {
     const res = await fetch("/api/conversations");
     if (res.ok) setConversations(await res.json());
   }, []);
 
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+  useEffect(() => { loadConversations(); }, [loadConversations]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -63,23 +77,35 @@ export default function ChatInterface({
   function newConversation() {
     setCurrentConvId(null);
     setMessages([]);
+    setPendingAttachments([]);
     setSidebarOpen(false);
   }
 
-  async function sendMessage() {
-    const text = input.trim();
-    if (!text || streaming) return;
-    setInput("");
+  // ── Core send logic (shared by sendMessage and regenerate) ─────
+  async function doSend(
+    text: string,
+    attachs: Attachment[],
+    convId: string | null,
+    isRegen: boolean
+  ) {
     setStreaming(true);
 
-    setMessages((prev) => [...prev, { role: "user", content: text }]);
-    setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: text, attachments: attachs },
+      { role: "assistant", content: "" },
+    ]);
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: currentConvId, message: text }),
+        body: JSON.stringify({
+          conversationId: convId,
+          message: text,
+          attachments: attachs,
+          regenerate: isRegen,
+        }),
       });
 
       if (!res.ok || !res.body) {
@@ -119,7 +145,7 @@ export default function ChatInterface({
           }
           try {
             const payload = JSON.parse(raw);
-            if (payload.conversationId && !currentConvId) {
+            if (payload.conversationId) {
               setCurrentConvId(payload.conversationId);
             }
             if (payload.text) {
@@ -135,16 +161,11 @@ export default function ChatInterface({
             if (payload.error) {
               setMessages((prev) => {
                 const copy = [...prev];
-                copy[copy.length - 1] = {
-                  role: "assistant",
-                  content: payload.error,
-                };
+                copy[copy.length - 1] = { role: "assistant", content: payload.error };
                 return copy;
               });
             }
-          } catch {
-            // ignore parse errors
-          }
+          } catch { /* ignore parse errors */ }
         }
       }
     } catch {
@@ -161,6 +182,31 @@ export default function ChatInterface({
     setStreaming(false);
   }
 
+  function sendMessage() {
+    const text = input.trim();
+    if (!text || streaming) return;
+    const attachs = [...pendingAttachments];
+    setInput("");
+    setPendingAttachments([]);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    doSend(text, attachs, currentConvId, false);
+  }
+
+  function regenerate() {
+    if (streaming || messages.length < 2) return;
+    const copy = [...messages];
+    // Need last pair to be user + assistant
+    if (
+      copy[copy.length - 1].role !== "assistant" ||
+      copy[copy.length - 2].role !== "user"
+    ) return;
+    const lastUserMsg = copy[copy.length - 2];
+    // Remove the last user + assistant from UI
+    setMessages(copy.slice(0, -2));
+    // Re-send (regenerate flag tells API to delete & re-create DB entries)
+    doSend(lastUserMsg.content, lastUserMsg.attachments ?? [], currentConvId, true);
+  }
+
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -175,6 +221,37 @@ export default function ChatInterface({
       el.style.height = "auto";
       el.style.height = Math.min(el.scrollHeight, 120) + "px";
     }
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setUploading(true);
+
+    for (const file of files) {
+      const form = new FormData();
+      form.append("file", file);
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: form });
+        if (res.ok) {
+          const att: Attachment = await res.json();
+          setPendingAttachments((prev) => [...prev, att]);
+        } else {
+          const msg = await res.text();
+          alert(`Erreur : ${msg}`);
+        }
+      } catch {
+        alert("Erreur lors du chargement du fichier.");
+      }
+    }
+
+    setUploading(false);
+    // Reset input so the same file can be re-added
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function removeAttachment(idx: number) {
+    setPendingAttachments((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function deleteConversation(id: string, e: React.MouseEvent) {
@@ -251,9 +328,7 @@ export default function ChatInterface({
             </Link>
           )}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 truncate flex-1">
-              {userName}
-            </span>
+            <span className="text-xs text-gray-500 truncate flex-1">{userName}</span>
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
               className="text-xs text-gray-500 hover:text-red-500 ml-2"
@@ -286,7 +361,7 @@ export default function ChatInterface({
                 Bonjour ! Comment puis-je vous aider ?
               </p>
               <p className="text-sm">
-                Posez une question ou démarrez une conversation.
+                Posez une question, joignez un fichier ou démarrez une conversation.
               </p>
             </div>
           )}
@@ -296,28 +371,64 @@ export default function ChatInterface({
               key={i}
               className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              <div
-                className={`max-w-[85%] sm:max-w-[70%] px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                  m.role === "user"
-                    ? "bg-indigo-600 text-white rounded-br-sm"
-                    : "bg-white text-gray-800 border border-gray-200 rounded-bl-sm shadow-sm"
-                }`}
-              >
-                {m.content === "" && m.role === "assistant" ? (
-                  <TypingIndicator />
-                ) : (
-                  m.content
-                )}
-              </div>
+              {m.role === "user" ? (
+                <UserBubble message={m} />
+              ) : (
+                <AssistantBubble
+                  message={m}
+                  isLast={i === messages.length - 1}
+                  streaming={streaming}
+                  onRegenerate={regenerate}
+                />
+              )}
             </div>
           ))}
 
           <div ref={bottomRef} />
         </div>
 
+        {/* Pending attachments preview */}
+        {pendingAttachments.length > 0 && (
+          <div className="px-4 pt-2 bg-white border-t border-gray-100">
+            <div className="max-w-3xl mx-auto flex flex-wrap gap-2">
+              {pendingAttachments.map((att, idx) => (
+                <AttachmentChip
+                  key={idx}
+                  attachment={att}
+                  onRemove={() => removeAttachment(idx)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Input area */}
         <div className="border-t border-gray-200 bg-white px-4 py-3">
           <div className="flex items-end gap-2 max-w-3xl mx-auto">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ACCEPTED_FILES}
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+
+            {/* Attachment button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={streaming || uploading}
+              title="Joindre un fichier (PDF, Word, Excel, image…)"
+              className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl border transition-colors ${
+                uploading
+                  ? "border-indigo-300 text-indigo-400 animate-pulse"
+                  : "border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600"
+              } disabled:opacity-40`}
+            >
+              {uploading ? "⏳" : "📎"}
+            </button>
+
             <textarea
               ref={textareaRef}
               value={input}
@@ -330,7 +441,7 @@ export default function ChatInterface({
             />
             <button
               onClick={sendMessage}
-              disabled={streaming || !input.trim()}
+              disabled={streaming || (!input.trim() && pendingAttachments.length === 0)}
               className="bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 flex-shrink-0"
             >
               {streaming ? "..." : "Envoyer"}
@@ -342,6 +453,137 @@ export default function ChatInterface({
   );
 }
 
+/* ── User message bubble ─────────────────────────────────────────── */
+function UserBubble({ message }: { message: Message }) {
+  const images = message.attachments?.filter((a) => a.type === "image") ?? [];
+  const files = message.attachments?.filter((a) => a.type === "text") ?? [];
+
+  return (
+    <div className="max-w-[85%] sm:max-w-[70%] space-y-1.5">
+      {/* Image previews */}
+      {images.map((img, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={i}
+          src={`data:${img.mimeType};base64,${img.content}`}
+          alt={img.name}
+          className="rounded-xl max-h-64 w-auto block ml-auto"
+        />
+      ))}
+      {/* File badges */}
+      {files.map((f, i) => (
+        <div key={i} className="flex items-center gap-1.5 bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-xl ml-auto w-fit">
+          <span>📄</span>
+          <span className="truncate max-w-[200px]">{f.name}</span>
+        </div>
+      ))}
+      {/* Text */}
+      {message.content && (
+        <div className="bg-indigo-600 text-white rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
+          {message.content}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Assistant message bubble ────────────────────────────────────── */
+function AssistantBubble({
+  message,
+  isLast,
+  streaming,
+  onRegenerate,
+}: {
+  message: Message;
+  isLast: boolean;
+  streaming: boolean;
+  onRegenerate: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(message.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <div className="max-w-[85%] sm:max-w-[75%] group">
+      <div className="bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-bl-sm shadow-sm px-4 py-3">
+        {message.content === "" && isLast && streaming ? (
+          <TypingIndicator />
+        ) : (
+          <MarkdownMessage content={message.content} />
+        )}
+      </div>
+
+      {/* Action toolbar — appears on hover or when this is the last message */}
+      {message.content && (
+        <div className={`flex items-center gap-1 mt-1 transition-opacity ${
+          isLast ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        }`}>
+          <button
+            onClick={handleCopy}
+            className="text-xs text-gray-400 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-100 transition-colors"
+          >
+            {copied ? "✓ Copié" : "📋 Copier"}
+          </button>
+          {isLast && !streaming && (
+            <button
+              onClick={onRegenerate}
+              className="text-xs text-gray-400 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-100 transition-colors"
+            >
+              🔄 Régénérer
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Attachment chip (in input area preview) ─────────────────────── */
+function AttachmentChip({
+  attachment,
+  onRemove,
+}: {
+  attachment: Attachment;
+  onRemove: () => void;
+}) {
+  if (attachment.type === "image") {
+    return (
+      <div className="relative group">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`data:${attachment.mimeType};base64,${attachment.content}`}
+          alt={attachment.name}
+          className="h-12 w-12 object-cover rounded-lg border border-gray-200"
+        />
+        <button
+          onClick={onRemove}
+          className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 bg-gray-100 text-gray-700 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 max-w-[160px]">
+      <span>📄</span>
+      <span className="truncate">{attachment.name}</span>
+      <button
+        onClick={onRemove}
+        className="text-gray-400 hover:text-red-500 ml-0.5 flex-shrink-0"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
+/* ── Typing indicator ────────────────────────────────────────────── */
 function TypingIndicator() {
   return (
     <span className="flex gap-1 items-center h-4">
@@ -351,3 +593,4 @@ function TypingIndicator() {
     </span>
   );
 }
+

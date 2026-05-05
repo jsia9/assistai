@@ -15,6 +15,7 @@ interface TenantStat {
   tokensThisMonth: number; estimatedCost: number;
   estimatedRevenue: number; amountPaid: number;
   balance: number; pctUsed: number;
+  systemPrompt: string | null;
 }
 interface UserRow {
   id: string; email: string; name: string | null; role: string;
@@ -85,7 +86,7 @@ export default function AdminDashboard() {
           </div>
 
           {tab === "users" && <UsersTab users={stats.users} onToggle={toggleUser} />}
-          {tab === "usage" && <UsageTab stats={stats} />}
+          {tab === "usage" && <UsageTab stats={stats} onRefresh={load} />}
           {tab === "billing" && <BillingTab stats={stats} onRefresh={load} />}
         </div>
       </main>
@@ -135,7 +136,29 @@ function UsersTab({ users, onToggle }: { users: UserRow[]; onToggle: (id: string
 }
 
 /* ── Usage tab ──────────────────────────────────────────────────── */
-function UsageTab({ stats }: { stats: Stats }) {
+function UsageTab({ stats, onRefresh }: { stats: Stats; onRefresh: () => void }) {
+  const [configId, setConfigId] = useState<string | null>(null);
+  const [configForm, setConfigForm] = useState({ systemPrompt: "", plan: "starter" });
+  const [saving, setSaving] = useState(false);
+
+  function openConfig(t: TenantStat) {
+    setConfigId(t.id);
+    setConfigForm({ systemPrompt: t.systemPrompt ?? "", plan: t.plan });
+  }
+
+  async function saveConfig() {
+    if (!configId) return;
+    setSaving(true);
+    await fetch(`/api/admin/tenants/${configId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(configForm),
+    });
+    setSaving(false);
+    setConfigId(null);
+    onRefresh();
+  }
+
   return (
     <div className="p-4 space-y-6">
       <div>
@@ -157,9 +180,17 @@ function UsageTab({ stats }: { stats: Stats }) {
             <div key={t.id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium text-gray-900">{t.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${t.pctUsed >= 90 ? "bg-red-100 text-red-700" : t.pctUsed >= 70 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>
-                  {t.pctUsed.toFixed(0)}% utilisé
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${t.pctUsed >= 90 ? "bg-red-100 text-red-700" : t.pctUsed >= 70 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"}`}>
+                    {t.pctUsed.toFixed(0)}% utilisé
+                  </span>
+                  <button
+                    onClick={() => configId === t.id ? setConfigId(null) : openConfig(t)}
+                    className="text-xs text-indigo-600 hover:underline"
+                  >
+                    {configId === t.id ? "Fermer" : "⚙ Configurer"}
+                  </button>
+                </div>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
                 <div className={`h-2 rounded-full transition-all ${t.pctUsed >= 90 ? "bg-red-500" : t.pctUsed >= 70 ? "bg-yellow-500" : "bg-indigo-500"}`}
@@ -169,6 +200,54 @@ function UsageTab({ stats }: { stats: Stats }) {
                 <span>{t.tokensThisMonth.toLocaleString("fr-FR")} / {t.monthlyTokenLimit.toLocaleString("fr-FR")} tokens</span>
                 <span>Coût: ${t.estimatedCost.toFixed(3)} → Facturé: ${t.estimatedRevenue.toFixed(2)}</span>
               </div>
+
+              {/* Inline config panel */}
+              {configId === t.id && (
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Plan</label>
+                      <select
+                        value={configForm.plan}
+                        onChange={(e) => setConfigForm((f) => ({ ...f, plan: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      >
+                        <option value="starter">starter</option>
+                        <option value="pro">pro</option>
+                        <option value="enterprise">enterprise</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Prompt système personnalisé
+                      <span className="ml-1 text-gray-400 font-normal">(laissez vide pour utiliser le prompt global)</span>
+                    </label>
+                    <textarea
+                      value={configForm.systemPrompt}
+                      onChange={(e) => setConfigForm((f) => ({ ...f, systemPrompt: e.target.value }))}
+                      rows={5}
+                      placeholder="Ex : Tu es un assistant juridique spécialisé en droit OHADA pour le cabinet Diallo & Associés. Réponds uniquement en français formel..."
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none font-mono"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setConfigId(null)}
+                      className="px-4 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      onClick={saveConfig}
+                      disabled={saving}
+                      className="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {saving ? "Sauvegarde…" : "Sauvegarder"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

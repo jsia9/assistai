@@ -8,18 +8,32 @@ import { NextRequest } from "next/server";
 const COST_PER_1K = 0.01;
 const MARKUP = 5;
 
+interface Attachment {
+  type: "image" | "text";
+  name: string;
+  content: string;   // base64 for images, plain text for text
+  mimeType?: string;
+}
+
 export async function POST(req: NextRequest) {
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const session = await getServerSession(authOptions);
   if (!session) return new Response("Unauthorized", { status: 401 });
 
-  const { conversationId, message } = await req.json();
+  const body = await req.json();
+  const { conversationId, message, attachments = [], regenerate = false } = body as {
+    conversationId: string | null;
+    message: string;
+    attachments: Attachment[];
+    regenerate: boolean;
+  };
+
   if (!message?.trim()) return new Response("Message requis", { status: 400 });
 
   const userId = session.user.id;
   const tenantId = session.user.tenantId;
 
-  // ── Quota check ──────────────────────────────────────────────
+  // ── Quota check ───────────────────────────────────────────────
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -58,19 +72,77 @@ export async function POST(req: NextRequest) {
     convId = conv.id;
   }
 
+  // ── If regenerating, remove the last user+assistant pair ───────
+  if (regenerate && convId) {
+    const last2 = await prisma.message.findMany({
+      where: { conversationId: convId },
+      orderBy: { createdAt: "desc" },
+      take: 2,
+    });
+    if (last2.length > 0) {
+      await prisma.message.deleteMany({
+        where: { id: { in: last2.map((m) => m.id) } },
+      });
+    }
+  }
+
+  // ── Build conversation history ─────────────────────────────────
   const history = await prisma.message.findMany({
     where: { conversationId: convId },
     orderBy: { createdAt: "asc" },
     take: 20,
   });
 
+  // ── Build the user content block ──────────────────────────────
+  type ContentBlock = Anthropic.TextBlockParam | Anthropic.ImageBlockParam;
+  const userContent: ContentBlock[] = [];
+
+  // Text attachments: prepend as context
+  const textAttachments = attachments.filter((a) => a.type === "text");
+  for (const att of textAttachments) {
+    userContent.push({
+      type: "text",
+      text: `[Fichier joint : ${att.name}]\n\n${att.content}\n\n---`,
+    });
+  }
+
+  // Image attachments: add as image blocks
+  const imageAttachments = attachments.filter((a) => a.type === "image");
+  for (const att of imageAttachments) {
+    userContent.push({
+      type: "image",
+      source: {
+        type: "base64",
+        media_type: att.mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+        data: att.content,
+      },
+    });
+  }
+
+  // The actual user text
+  userContent.push({ type: "text", text: message });
+
+  // ── Build messages array for Anthropic ────────────────────────
   const messages: Anthropic.MessageParam[] = [
     ...history.map((m: { role: string; content: string }) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     })),
-    { role: "user" as const, content: message },
+    {
+      role: "user" as const,
+      content: userContent.length === 1 ? message : userContent,
+    },
   ];
+
+  // ── Determine system prompt (tenant-specific overrides global) ─
+  const systemPrompt =
+    (tenant?.systemPrompt ?? "").trim() || SYSTEM_PROMPT;
+
+  // ── Build stored user message content ─────────────────────────
+  const storedUserContent =
+    textAttachments.map((a) => `[Fichier : ${a.name}]\n${a.content}\n---\n`).join("") +
+    imageAttachments.map((a) => `[Image : ${a.name}]\n`).join("") +
+    message;
 
   const encoder = new TextEncoder();
   let inputTokens = 0;
@@ -87,7 +159,7 @@ export async function POST(req: NextRequest) {
         const anthropicStream = anthropic.messages.stream({
           model: "claude-sonnet-4-6",
           max_tokens: 4096,
-          system: SYSTEM_PROMPT,
+          system: systemPrompt,
           messages,
         });
 
@@ -117,7 +189,7 @@ export async function POST(req: NextRequest) {
               conversationId: convId!,
               tenantId,
               role: "user",
-              content: message,
+              content: storedUserContent,
               promptTokens: inputTokens,
               completionTokens: 0,
             },

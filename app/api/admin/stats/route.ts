@@ -99,6 +99,7 @@ export async function GET() {
       plan: t.plan,
       active: t.active,
       monthlyTokenLimit: t.monthlyTokenLimit,
+      systemPrompt: t.systemPrompt ?? null,
       userCount: t.users.length,
       tokensThisMonth: tokens,
       estimatedCost: cost,
