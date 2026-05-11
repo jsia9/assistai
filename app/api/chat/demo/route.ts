@@ -83,7 +83,10 @@ export async function POST(req: NextRequest) {
 
   // Set session cookie if new
   if (isNewSid) {
-    responseHeaders["Set-Cookie"] = `liya_demo_sid=${sid}; Path=/; Max-Age=86400; SameSite=Lax`;
+    // HttpOnly: blocks JS access to the cookie (XSS mitigation).
+    // Secure: only sent over HTTPS (enforced in prod by Vercel).
+    const isSecure = process.env.NODE_ENV === "production";
+    responseHeaders["Set-Cookie"] = `liya_demo_sid=${sid}; Path=/; Max-Age=86400; SameSite=Lax; HttpOnly${isSecure ? "; Secure" : ""}`;
   }
 
   const stream = new ReadableStream({

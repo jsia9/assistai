@@ -14,11 +14,16 @@ export async function POST(
   }
 
   const { id } = await params;
-  const user = await prisma.user.findUnique({ where: { id }, select: { tenantId: true, active: true, email: true } });
+  const user = await prisma.user.findUnique({ where: { id }, select: { tenantId: true, active: true, email: true, role: true } });
   if (!user) return new Response("Not found", { status: 404 });
 
   if (!canManageUser(session.user.role, session.user.tenantId, user.tenantId)) {
     return new Response("Forbidden", { status: 403 });
+  }
+
+  // An admin cannot suspend/unsuspend a superadmin
+  if (user.role === "superadmin" && session.user.role !== "superadmin") {
+    return new Response("Forbidden: cannot modify a superadmin account", { status: 403 });
   }
 
   const updated = await prisma.user.update({

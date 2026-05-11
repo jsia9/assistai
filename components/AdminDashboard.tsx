@@ -216,18 +216,32 @@ function UsersTab({
               <td className="px-4 py-3 text-aria-stone">{u.messagesThisMonth}</td>
               <td className="px-4 py-3 text-aria-stone">{new Date(u.lastActiveAt).toLocaleDateString("fr-FR")}</td>
               <td className="px-4 py-3">
-                <button onClick={() => onToggle(u.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${u.active ? "bg-aria-emerald/10 text-aria-emerald hover:bg-red-100 hover:text-red-700" : "bg-red-100 text-red-700 hover:bg-aria-emerald/10 hover:text-aria-emerald"}`}>
-                  {u.active ? "Actif" : "Suspendu"}
-                </button>
+                {/* Admins cannot suspend/unsuspend a superadmin */}
+                {u.role === "superadmin" && !isSuperAdmin ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-400 cursor-not-allowed" title="Seul un superadmin peut modifier ce compte">
+                    {u.active ? "Actif" : "Suspendu"}
+                  </span>
+                ) : (
+                  <button onClick={() => onToggle(u.id)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${u.active ? "bg-aria-emerald/10 text-aria-emerald hover:bg-red-100 hover:text-red-700" : "bg-red-100 text-red-700 hover:bg-aria-emerald/10 hover:text-aria-emerald"}`}>
+                    {u.active ? "Actif" : "Suspendu"}
+                  </button>
+                )}
               </td>
               <td className="px-4 py-3">
-                <button
-                  onClick={() => { setPwdUserId(u.id); setPwdValue(""); setPwdError(""); }}
-                  className="text-xs text-aria-stone hover:text-aria-indigo px-2 py-1 rounded hover:bg-aria-indigo-light"
-                >
-                  🔑 Modifier
-                </button>
+                {/* Admins cannot change a superadmin's password */}
+                {u.role === "superadmin" && !isSuperAdmin ? (
+                  <span className="text-xs text-gray-300 px-2 py-1 cursor-not-allowed" title="Seul un superadmin peut modifier ce compte">
+                    🔑 —
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => { setPwdUserId(u.id); setPwdValue(""); setPwdError(""); }}
+                    className="text-xs text-aria-stone hover:text-aria-indigo px-2 py-1 rounded hover:bg-aria-indigo-light"
+                  >
+                    🔑 Modifier
+                  </button>
+                )}
               </td>
             </tr>
           ))}

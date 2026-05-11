@@ -24,12 +24,17 @@ export async function PATCH(
     });
   }
 
-  // Load the target user to check tenant ownership
-  const target = await prisma.user.findUnique({ where: { id }, select: { tenantId: true, email: true } });
+  // Load the target user to check tenant ownership and role
+  const target = await prisma.user.findUnique({ where: { id }, select: { tenantId: true, email: true, role: true } });
   if (!target) return new Response("Not found", { status: 404 });
 
   if (!canManageUser(session.user.role, session.user.tenantId, target.tenantId)) {
     return new Response("Forbidden", { status: 403 });
+  }
+
+  // An admin cannot change the password of a superadmin
+  if (target.role === "superadmin" && session.user.role !== "superadmin") {
+    return new Response("Forbidden: cannot modify a superadmin account", { status: 403 });
   }
 
   const passwordHash = await bcrypt.hash(password as string, 12);

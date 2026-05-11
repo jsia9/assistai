@@ -14,8 +14,16 @@ export async function GET() {
 
   const tenantFilter = role === "superadmin" ? undefined : { tenantId: session.user.tenantId };
 
+  // Non-superadmin admins must never see superadmin accounts — this prevents
+  // email/identity disclosure and blocks any future privilege-escalation path
+  // through the admin UI targeting a superadmin account.
+  const roleFilter = role === "superadmin" ? undefined : { not: "superadmin" as const };
+
   const users = await prisma.user.findMany({
-    where: tenantFilter,
+    where: {
+      ...tenantFilter,
+      ...(roleFilter !== undefined && { role: roleFilter }),
+    },
     select: {
       id: true,
       email: true,

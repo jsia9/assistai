@@ -41,7 +41,12 @@ export async function GET() {
         },
       }),
       prisma.user.findMany({
-        where: tenantFilter ? { tenantId: tenantFilter.id } : undefined,
+        where: {
+          ...(tenantFilter ? { tenantId: tenantFilter.id } : {}),
+          // Non-superadmin admins must not see superadmin accounts in stats.
+          // Mirrors the same guard in GET /api/admin/users.
+          ...(role !== "superadmin" ? { role: { not: "superadmin" } } : {}),
+        },
         select: {
           id: true,
           email: true,

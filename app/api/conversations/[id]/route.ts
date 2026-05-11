@@ -53,10 +53,19 @@ export async function DELETE(
   if (!session) return new Response("Unauthorized", { status: 401 });
 
   const { id } = await params;
-  await prisma.message.deleteMany({ where: { conversationId: id } });
-  await prisma.conversation.deleteMany({
+
+  // SECURITY: verify ownership BEFORE touching any data.
+  // The previous code ran message.deleteMany on the raw id before the userId
+  // guard on conversation.deleteMany — any authenticated user could wipe
+  // another user's messages by sending DELETE /api/conversations/[victim_id].
+  const conv = await prisma.conversation.findFirst({
     where: { id, userId: session.user.id },
+    select: { id: true },
   });
+  if (!conv) return new Response("Not found", { status: 404 });
+
+  await prisma.message.deleteMany({ where: { conversationId: id } });
+  await prisma.conversation.delete({ where: { id } });
 
   return new Response(null, { status: 204 });
 }
