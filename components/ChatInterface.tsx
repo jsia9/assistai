@@ -14,12 +14,20 @@ interface Attachment {
   mimeType?: string;
 }
 
+interface GeneratedDocument {
+  filename: string;
+  mimeType: string;
+  base64: string;
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
   attachments?: Attachment[];
   model?: ModelId; // set on assistant messages
   thinking?: string; // Extended Thinking content
+  document?: GeneratedDocument; // generated file attached to this message
+  generating?: string; // tool name currently being generated
 }
 
 interface TokenUsage {
@@ -346,6 +354,26 @@ export default function ChatInterface({
               setMessages((prev) => {
                 const copy = [...prev];
                 copy[copy.length - 1] = { ...copy[copy.length - 1], content: copy[copy.length - 1].content + payload.text };
+                return copy;
+              });
+            }
+            if (payload.generating) {
+              // Show "generating document" spinner on assistant message
+              setMessages((prev) => {
+                const copy = [...prev];
+                copy[copy.length - 1] = { ...copy[copy.length - 1], generating: payload.generating };
+                return copy;
+              });
+            }
+            if (payload.document) {
+              // Attach generated document to current assistant message
+              setMessages((prev) => {
+                const copy = [...prev];
+                copy[copy.length - 1] = {
+                  ...copy[copy.length - 1],
+                  generating: undefined,
+                  document: payload.document,
+                };
                 return copy;
               });
             }
@@ -949,9 +977,27 @@ function AssistantBubble({ message, isLast, streaming, onRegenerate, currentMode
         </div>
       )}
 
+      {/* Generating document spinner */}
+      {message.generating && (
+        <div className="mb-2 flex items-center gap-2 text-[12px] text-aria-indigo bg-aria-indigo-light border border-aria-indigo/20 rounded-xl px-3 py-2">
+          <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-aria-indigo border-t-transparent rounded-full" />
+          <span>
+            {message.generating === "generate_powerpoint" && "Génération du PowerPoint…"}
+            {message.generating === "generate_excel"      && "Génération du fichier Excel…"}
+            {message.generating === "generate_word"       && "Génération du document Word…"}
+          </span>
+        </div>
+      )}
+
       <div className="bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-bl-sm shadow-sm px-4 py-3">
         {message.content === "" && isLast && streaming && !message.thinking ? <TypingIndicator /> : <MarkdownMessage content={message.content} />}
       </div>
+
+      {/* Generated document download button */}
+      {message.document && (
+        <DocumentDownloadButton doc={message.document} />
+      )}
+
       {message.content && (
         <div className={`flex items-center gap-1 mt-1 transition-opacity ${isLast ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
           <button onClick={handleCopy} className="text-xs text-gray-400 hover:text-gray-700 px-2 py-0.5 rounded hover:bg-gray-100 transition-colors">
@@ -965,6 +1011,47 @@ function AssistantBubble({ message, isLast, streaming, onRegenerate, currentMode
         </div>
       )}
     </div>
+  );
+}
+
+/* ── Document download button ────────────────────────────────── */
+function DocumentDownloadButton({ doc }: { doc: GeneratedDocument }) {
+  const ext = doc.filename.split(".").pop()?.toLowerCase() ?? "";
+
+  const icons: Record<string, string> = {
+    pptx: "📊",
+    xlsx: "📗",
+    docx: "📄",
+  };
+  const labels: Record<string, string> = {
+    pptx: "PowerPoint",
+    xlsx: "Excel",
+    docx: "Word",
+  };
+
+  function download() {
+    const bytes  = Uint8Array.from(atob(doc.base64), c => c.charCodeAt(0));
+    const blob   = new Blob([bytes], { type: doc.mimeType });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement("a");
+    a.href       = url;
+    a.download   = doc.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <button
+      onClick={download}
+      className="mt-2 flex items-center gap-2.5 bg-aria-indigo-light hover:bg-aria-indigo hover:text-white text-aria-indigo border border-aria-indigo/30 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all group/dl"
+    >
+      <span className="text-lg">{icons[ext] ?? "📁"}</span>
+      <span className="flex-1 text-left">
+        <span className="block text-xs font-normal opacity-70">{labels[ext] ?? "Document"} généré</span>
+        <span>{doc.filename}</span>
+      </span>
+      <span className="text-xs opacity-60 group-hover/dl:opacity-100">⬇ Télécharger</span>
+    </button>
   );
 }
 

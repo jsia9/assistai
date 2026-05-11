@@ -5,6 +5,10 @@ import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
 import { MODEL_COEFFICIENTS, DEFAULT_COEFFICIENT } from "@/lib/model-coefficients";
+import { DOCUMENT_TOOLS, isDocumentTool } from "@/lib/skills/tools";
+import { generatePptx } from "@/lib/skills/generate-pptx";
+import { generateXlsx } from "@/lib/skills/generate-xlsx";
+import { generateDocx } from "@/lib/skills/generate-docx";
 
 const COST_PER_1K = 0.01;
 const MARKUP = 5;
@@ -223,6 +227,8 @@ export async function POST(req: NextRequest) {
           max_tokens: maxTokens,
           system: systemPrompt,
           messages,
+          // Disable tools when extended thinking is active (API restriction)
+          ...(!thinkingEnabled && { tools: DOCUMENT_TOOLS }),
           ...(thinkingEnabled && {
             thinking: { type: "enabled", budget_tokens: 10000 },
           }),
@@ -231,6 +237,11 @@ export async function POST(req: NextRequest) {
         const anthropicStream = anthropic.messages.stream(streamParams);
 
         let thinkingContent = "";
+
+        // Tool use tracking
+        let pendingToolName = "";
+        let pendingToolId   = "";
+        let pendingToolJson = "";
 
         for await (const event of anthropicStream) {
           // Thinking block deltas (Extended Thinking)
@@ -257,10 +268,99 @@ export async function POST(req: NextRequest) {
               )
             );
           }
+          // Tool use — capture name + id
+          if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
+            pendingToolName = event.content_block.name;
+            pendingToolId   = event.content_block.id;
+            pendingToolJson = "";
+          }
+          // Tool use — accumulate input JSON
+          if (event.type === "content_block_delta" && event.delta.type === "input_json_delta") {
+            pendingToolJson += event.delta.partial_json;
+          }
           if (event.type === "message_delta" && event.usage)
             outputTokens = event.usage.output_tokens;
           if (event.type === "message_start" && event.message.usage)
             inputTokens = event.message.usage.input_tokens;
+        }
+
+        // ── Execute document tool if Claude called one ───────────
+        if (pendingToolName && isDocumentTool(pendingToolName)) {
+          try {
+            // Signal "generating" to client
+            controller.enqueue(encoder.encode(
+              `data: ${JSON.stringify({ generating: pendingToolName })}\n\n`
+            ));
+
+            const toolInput = JSON.parse(pendingToolJson);
+            let fileBuffer: Buffer;
+            let mimeType: string;
+            let ext: string;
+
+            if (pendingToolName === "generate_powerpoint") {
+              fileBuffer = await generatePptx(toolInput);
+              mimeType   = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+              ext        = "pptx";
+            } else if (pendingToolName === "generate_excel") {
+              fileBuffer = generateXlsx(toolInput);
+              mimeType   = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+              ext        = "xlsx";
+            } else {
+              fileBuffer = await generateDocx(toolInput);
+              mimeType   = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+              ext        = "docx";
+            }
+
+            const filename = `${(toolInput.filename as string).replace(/[^a-z0-9_\-]/gi, "_")}.${ext}`;
+            const base64   = fileBuffer.toString("base64");
+
+            // Send file to client as a special SSE event
+            controller.enqueue(encoder.encode(
+              `data: ${JSON.stringify({ document: { filename, mimeType, base64 } })}\n\n`
+            ));
+
+            // Ask Claude to explain what was generated (second turn)
+            const toolResultMessages: Anthropic.MessageParam[] = [
+              ...messages,
+              {
+                role: "assistant" as const,
+                content: [{ type: "tool_use" as const, id: pendingToolId, name: pendingToolName, input: toolInput }],
+              },
+              {
+                role: "user" as const,
+                content: [{
+                  type: "tool_result" as const,
+                  tool_use_id: pendingToolId,
+                  content: `Fichier "${filename}" généré avec succès (${fileBuffer.length} octets).`,
+                }],
+              },
+            ];
+
+            const followUpStream = anthropic.messages.stream({
+              model,
+              max_tokens: 1024,
+              system: systemPrompt,
+              messages: toolResultMessages,
+            });
+
+            for await (const ev of followUpStream) {
+              if (ev.type === "content_block_delta" && ev.delta.type === "text_delta") {
+                fullContent += ev.delta.text;
+                controller.enqueue(encoder.encode(
+                  `data: ${JSON.stringify({ text: ev.delta.text })}\n\n`
+                ));
+              }
+              if (ev.type === "message_delta" && ev.usage)
+                outputTokens += ev.usage.output_tokens;
+            }
+          } catch (toolErr) {
+            console.error("Document generation error:", toolErr);
+            const errMsg = "\n\n⚠️ Une erreur s'est produite lors de la génération du document. Veuillez réessayer.";
+            fullContent += errMsg;
+            controller.enqueue(encoder.encode(
+              `data: ${JSON.stringify({ text: errMsg })}\n\n`
+            ));
+          }
         }
 
         const coefficient = MODEL_COEFFICIENTS[model] ?? DEFAULT_COEFFICIENT;
