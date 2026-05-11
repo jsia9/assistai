@@ -102,8 +102,8 @@ function makeTable(headers: string[], rows: string[][]): Table {
       bottom: { style: BorderStyle.SINGLE, size: 1, color: "C8C2B5" },
       left:   { style: BorderStyle.SINGLE, size: 1, color: "C8C2B5" },
       right:  { style: BorderStyle.SINGLE, size: 1, color: "C8C2B5" },
-      insideH:{ style: BorderStyle.SINGLE, size: 1, color: "C8C2B5" },
-      insideV:{ style: BorderStyle.SINGLE, size: 1, color: "C8C2B5" },
+      insideHorizontal: { style: BorderStyle.SINGLE, size: 1, color: "C8C2B5" },
+      insideVertical:   { style: BorderStyle.SINGLE, size: 1, color: "C8C2B5" },
     },
   });
 }
