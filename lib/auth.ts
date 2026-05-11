@@ -2,6 +2,7 @@ import { NextAuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
+import { audit } from "./audit";
 
 type ExtendedUser = User & { role: string; tenantId: string };
 
@@ -15,19 +16,47 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Mot de passe", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        // Build a Request-like wrapper so audit() can capture IP/UA.
+        // NextAuth gives req.headers as a plain object.
+        const h = (req?.headers ?? {}) as Record<string, string>;
+        const fakeReq = new Request("http://kamali.local/audit", {
+          headers: {
+            "x-forwarded-for": h["x-forwarded-for"] ?? "",
+            "user-agent": h["user-agent"] ?? "",
+          },
+        });
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
           include: { tenant: true },
         });
 
-        if (!user) return null;
-        if (!user.active) throw new Error("Compte suspendu");
+        if (!user) {
+          await audit(fakeReq, null, "login.failure",
+            { type: "User", id: "unknown" },
+            { reason: "user_not_found" },
+            { email: credentials.email });
+          return null;
+        }
+        if (!user.active) {
+          await audit(fakeReq, null, "login.failure",
+            { type: "User", id: user.id },
+            { reason: "account_suspended" },
+            { email: user.email });
+          throw new Error("Compte suspendu");
+        }
 
         const valid = await bcrypt.compare(credentials.password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) {
+          await audit(fakeReq, null, "login.failure",
+            { type: "User", id: user.id },
+            { reason: "bad_password" },
+            { email: user.email });
+          return null;
+        }
 
         await prisma.user.update({
           where: { id: user.id },
@@ -41,6 +70,12 @@ export const authOptions: NextAuthOptions = {
           role: user.role,
           tenantId: user.tenantId,
         };
+
+        await audit(fakeReq,
+          { user: { id: user.id, email: user.email, role: user.role, tenantId: user.tenantId } },
+          "login.success",
+          { type: "User", id: user.id });
+
         return extUser;
       },
     }),

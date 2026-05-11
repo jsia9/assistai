@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guide Administrateur — Kamali</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.7; }
+
+    /* ── Layout ── */
+    .container { max-width: 820px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    /* ── Header ── */
+    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border-radius: 16px; padding: 36px 40px; margin-bottom: 40px; }
+    .header h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 6px; }
+    .header p  { opacity: .85; font-size: 1rem; }
+    .badge { display: inline-block; background: rgba(255,255,255,.2); border-radius: 20px; padding: 3px 12px; font-size: .75rem; font-weight: 600; margin-top: 12px; }
+
+    /* ── Section ── */
+    .section { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; }
+    .section h2 { font-size: 1.15rem; font-weight: 700; color: #1e293b; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+    .section h3 { font-size: .95rem; font-weight: 600; color: #374151; margin: 20px 0 8px; }
+    .section p  { color: #475569; font-size: .95rem; margin-bottom: 10px; }
+    .section ul { padding-left: 20px; color: #475569; font-size: .95rem; }
+    .section li { margin-bottom: 6px; }
+
+    /* ── Steps ── */
+    .step-badge { background: #4f46e5; color: white; border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; flex-shrink: 0; }
+    .step-list { counter-reset: step; list-style: none; padding: 0; }
+    .step-list li { counter-increment: step; display: flex; gap: 14px; margin-bottom: 14px; align-items: flex-start; }
+    .step-list li::before { content: counter(step); background: #eef2ff; color: #4f46e5; border-radius: 50%; min-width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; margin-top: 2px; flex-shrink: 0; }
+
+    /* ── Code blocks ── */
+    .code-wrap { position: relative; margin: 12px 0; }
+    pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 18px 20px; font-size: .82rem; font-family: "SF Mono", "Fira Code", Consolas, monospace; overflow-x: auto; line-height: 1.6; }
+    pre .comment { color: #64748b; }
+    pre .cmd { color: #7dd3fc; }
+    pre .val { color: #86efac; }
+    pre .flag { color: #fbbf24; }
+    pre .out { color: #a3e635; }
+    .copy-btn { position: absolute; top: 10px; right: 10px; background: #1e3a5f; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; padding: 4px 10px; font-size: .72rem; cursor: pointer; transition: all .15s; }
+    .copy-btn:hover { background: #4f46e5; color: white; border-color: #4f46e5; }
+    .copy-btn.copied { background: #166534; color: #bbf7d0; border-color: #166534; }
+
+    /* ── Callouts ── */
+    .callout { border-radius: 8px; padding: 14px 16px; font-size: .9rem; margin: 12px 0; display: flex; gap: 10px; align-items: flex-start; }
+    .callout-info  { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .callout-warn  { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .callout-tip   { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .callout-icon  { font-size: 1rem; margin-top: 1px; flex-shrink: 0; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: .88rem; margin: 12px 0; }
+    th { background: #f1f5f9; text-align: left; padding: 10px 14px; font-weight: 600; color: #374151; border: 1px solid #e2e8f0; }
+    td { padding: 9px 14px; border: 1px solid #e2e8f0; color: #475569; vertical-align: top; }
+    tr:hover td { background: #f8fafc; }
+    code { background: #f1f5f9; color: #be185d; padding: 1px 6px; border-radius: 4px; font-family: monospace; font-size: .85em; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; }
+    .tab { padding: 10px 20px; font-size: .9rem; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; }
+    .tab.active { color: #4f46e5; border-color: #4f46e5; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── Path ── */
+    .path-tag { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; border-radius: 6px; padding: 4px 10px; font-family: monospace; font-size: .8rem; display: inline-block; margin-bottom: 12px; }
+
+    /* ── Footer ── */
+    .footer { text-align: center; color: #94a3b8; font-size: .8rem; margin-top: 40px; }
+
+    @media (max-width: 600px) {
+      .header { padding: 24px 20px; }
+      .section { padding: 20px; }
+      .header h1 { font-size: 1.4rem; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- ═══ HEADER ═══════════════════════════════════════════════ -->
+  <div class="header">
+    <h1>📋 Guide Administrateur — Kamali</h1>
+    <p>Procédure complète pour ajouter un utilisateur après réception d'une demande d'accès.</p>
+    <span class="badge">🔐 Usage interne — Ne pas partager</span>
+  </div>
+
+  <!-- ═══ WORKFLOW GÉNÉRAL ══════════════════════════════════════ -->
+  <div class="section">
+    <h2><span class="step-badge">→</span> Flux de travail global</h2>
+    <ol class="step-list">
+      <li>Vous recevez un email de demande d'accès à <strong>jamal9@gmail.com</strong> avec le nom, l'entreprise et l'email du demandeur.</li>
+      <li>Ouvrez un terminal et naviguez vers le dossier du projet.</li>
+      <li>Listez les entreprises existantes pour trouver le bon <code>TENANT_ID</code>.</li>
+      <li><strong>Cas A</strong> — L'entreprise existe → ajoutez directement l'utilisateur.<br>
+          <strong>Cas B</strong> — Nouvelle entreprise → créez l'entreprise et le premier utilisateur.</li>
+      <li>Communiquez l'email et le mot de passe temporaire à l'utilisateur par WhatsApp ou email sécurisé.</li>
+      <li>Informez l'utilisateur de changer son mot de passe depuis le tableau de bord admin (<strong>Administration → Mot de passe</strong>).</li>
+    </ol>
+  </div>
+
+  <!-- ═══ PRÉREQUIS ═════════════════════════════════════════════ -->
+  <div class="section">
+    <h2>⚙️ Prérequis — Ouvrir le terminal au bon endroit</h2>
+    <p>Toutes les commandes doivent être exécutées depuis le dossier du projet. Copiez-collez exactement :</p>
+    <div class="code-wrap">
+      <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+      <pre><span class="comment"># Naviguer vers le projet</span>
+<span class="cmd">cd</span> <span class="val">"/Users/papa/Documents/Business - EDS Solar/Claude Mali/assistai"</span>
+
+<span class="comment"># S'assurer que Node 20 est utilisé</span>
+<span class="cmd">export</span> PATH=<span class="val">"/usr/local/opt/node@20/bin:$PATH"</span></pre>
+    </div>
+    <div class="callout callout-info">
+      <span class="callout-icon">💡</span>
+      <span>Conseil : ajoutez ces deux lignes à votre fichier <code>~/.zshrc</code> ou <code>~/.bashrc</code> pour ne pas avoir à les retaper à chaque session.</span>
+    </div>
+  </div>
+
+  <!-- ═══ ÉTAPE 1 : LISTER LES ENTREPRISES ═════════════════════ -->
+  <div class="section">
+    <h2>🔎 Étape 1 — Voir toutes les entreprises et leurs IDs</h2>
+    <p>Lancez cette commande pour obtenir la liste complète avec les identifiants :</p>
+    <div class="code-wrap">
+      <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+      <pre><span class="cmd">npx tsx prisma/list-tenants.ts</span></pre>
+    </div>
+    <p>Exemple de résultat :</p>
+    <div class="code-wrap">
+      <pre><span class="out">══════════════════════════════════════════════════
+  LISTE DES ENTREPRISES
+══════════════════════════════════════════════════
+
+📁  SIAA Agile Solutions
+    ID      : cm8xkpq2k0000abc123456789
+    Plan    : starter   |   Actif : oui
+    Quota   : 500 000 tokens/mois
+    Utilisateurs (2) :
+      ✅  jamal@siaagilesolutions.com  [superadmin]
+      ✅  ousmanebsy@gmail.com  [user]
+
+📁  Cabinet Traoré & Associés
+    ID      : cm9yzab3c0001def987654321
+    Plan    : pro   |   Actif : oui
+    Quota   : 1 000 000 tokens/mois
+    Utilisateurs (1) :
+      ✅  traore@cabinet-mali.com  [admin]</span></pre>
+    </div>
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <span>Notez bien l'<strong>ID</strong> (ex : <code>cm8xkpq2k0000abc123456789</code>) — vous en aurez besoin à l'étape 2A.</span>
+    </div>
+  </div>
+
+  <!-- ═══ ÉTAPES 2A / 2B avec TABS ═════════════════════════════ -->
+  <div class="section">
+    <h2>➕ Étape 2 — Ajouter l'utilisateur</h2>
+
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab(this, 'tab-existing')">Cas A — Entreprise existante</div>
+      <div class="tab" onclick="switchTab(this, 'tab-new')">Cas B — Nouvelle entreprise</div>
+    </div>
+
+    <!-- TAB A -->
+    <div id="tab-existing" class="tab-content active">
+      <p>L'entreprise est déjà dans la liste. Il suffit d'ajouter l'utilisateur et de renseigner son <code>TENANT_ID</code>.</p>
+
+      <h3>Option 1 — Variables en ligne de commande (recommandé)</h3>
+      <p>Remplacez les valeurs <code style="color:#be185d">en vert</code> par les informations du demandeur :</p>
+      <div class="code-wrap">
+        <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+        <pre><span class="flag">EMAIL</span>=<span class="val">"ousmane@entreprise.com"</span> \
+<span class="flag">NAME</span>=<span class="val">"Ousmane Diallo"</span> \
+<span class="flag">TENANT_ID</span>=<span class="val">"COLLER_L_ID_ICI"</span> \
+<span class="flag">PASSWORD</span>=<span class="val">"Bamako2026!"</span> \
+<span class="flag">ROLE</span>=<span class="val">"user"</span> \
+<span class="cmd">npx tsx prisma/add-user.ts</span></pre>
+      </div>
+
+      <h3>Option 2 — Éditer le fichier directement</h3>
+      <p>Ouvrez le fichier <span class="path-tag">prisma/add-user.ts</span> dans un éditeur, modifiez les constantes en haut du fichier, puis lancez :</p>
+      <div class="code-wrap">
+        <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+        <pre><span class="cmd">npx tsx prisma/add-user.ts</span></pre>
+      </div>
+
+      <h3>Résultat attendu</h3>
+      <div class="code-wrap">
+        <pre><span class="out">✅  Utilisateur créé avec succès !
+
+    Nom          : Ousmane Diallo
+    Email        : ousmane@entreprise.com
+    Mot de passe : Bamako2026!
+    Rôle         : user
+    Entreprise   : Cabinet Traoré &amp; Associés  (cm9yzab3c0001def987654321)
+    ID user      : cm9zzcd4d0002ghi135792468
+
+    ⚠️  Communiquez l'email et le mot de passe à l'utilisateur.
+       Conseillez-lui de changer son mot de passe dès la première connexion.</span></pre>
+      </div>
+    </div>
+
+    <!-- TAB B -->
+    <div id="tab-new" class="tab-content">
+      <p>L'entreprise n'existe pas encore. Cette commande crée l'entreprise <strong>et</strong> son premier utilisateur (généralement un admin) en une seule opération.</p>
+
+      <h3>Option 1 — Variables en ligne de commande (recommandé)</h3>
+      <div class="code-wrap">
+        <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+        <pre><span class="flag">COMPANY</span>=<span class="val">"Société Keita &amp; Frères"</span> \
+<span class="flag">EMAIL</span>=<span class="val">"directeur@keita-mali.com"</span> \
+<span class="flag">NAME</span>=<span class="val">"Moussa Keita"</span> \
+<span class="flag">PASSWORD</span>=<span class="val">"Bamako2026!"</span> \
+<span class="flag">ROLE</span>=<span class="val">"admin"</span> \
+<span class="flag">PLAN</span>=<span class="val">"starter"</span> \
+<span class="flag">TOKEN_LIMIT</span>=<span class="val">"500000"</span> \
+<span class="cmd">npx tsx prisma/create-company.ts</span></pre>
+      </div>
+
+      <h3>Option 2 — Éditer le fichier directement</h3>
+      <p>Ouvrez <span class="path-tag">prisma/create-company.ts</span>, modifiez les constantes, puis :</p>
+      <div class="code-wrap">
+        <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+        <pre><span class="cmd">npx tsx prisma/create-company.ts</span></pre>
+      </div>
+
+      <h3>Résultat attendu</h3>
+      <div class="code-wrap">
+        <pre><span class="out">✅  Entreprise et utilisateur créés !
+
+──── ENTREPRISE ────────────────────────────────
+    Nom          : Société Keita &amp; Frères
+    ID           : cm9aabc5e0003jkl246813579
+    Plan         : starter
+    Quota/mois   : 500 000 tokens
+
+──── UTILISATEUR ───────────────────────────────
+    Nom          : Moussa Keita
+    Email        : directeur@keita-mali.com
+    Mot de passe : Bamako2026!
+    Rôle         : admin
+    ID user      : cm9abcd6f0004mno369258147
+
+    ⚠️  Communiquez l'email et le mot de passe à l'utilisateur.
+       Conseillez-lui de changer son mot de passe dès la première connexion.</span></pre>
+      </div>
+
+      <div class="callout callout-tip">
+        <span class="callout-icon">✅</span>
+        <span>Pour ajouter d'autres utilisateurs à cette entreprise, utilisez ensuite le <strong>Cas A</strong> avec l'ID de l'entreprise qui vient d'être créée.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ VALEURS DE RÉFÉRENCE ══════════════════════════════════ -->
+  <div class="section">
+    <h2>📊 Valeurs de référence</h2>
+
+    <h3>Rôles disponibles (<code>ROLE</code>)</h3>
+    <table>
+      <tr><th>Valeur</th><th>Description</th><th>Quand l'utiliser</th></tr>
+      <tr><td><code>user</code></td><td>Utilisateur standard</td><td>La plupart des collaborateurs d'une entreprise</td></tr>
+      <tr><td><code>admin</code></td><td>Admin d'entreprise</td><td>Responsable IT ou manager — voit les stats de sa société</td></tr>
+      <tr><td><code>superadmin</code></td><td>Super administrateur</td><td>Réservé à vous — accès total à toutes les entreprises</td></tr>
+    </table>
+
+    <h3 style="margin-top:20px">Plans disponibles (<code>PLAN</code>)</h3>
+    <table>
+      <tr><th>Valeur</th><th>Token limit conseillé</th><th>Profil client typique</th></tr>
+      <tr><td><code>starter</code></td><td>500 000 / mois</td><td>PME, 1–5 utilisateurs, usage modéré</td></tr>
+      <tr><td><code>pro</code></td><td>1 500 000 / mois</td><td>Équipe 5–20 personnes, usage régulier</td></tr>
+      <tr><td><code>enterprise</code></td><td>5 000 000 / mois</td><td>Grande organisation, usage intensif</td></tr>
+    </table>
+
+    <div class="callout callout-info" style="margin-top:16px">
+      <span class="callout-icon">💡</span>
+      <span>Le quota (<code>TOKEN_LIMIT</code>) peut être modifié à tout moment depuis <strong>Administration → Utilisation → ⚙ Configurer</strong> sans toucher à la base de données.</span>
+    </div>
+  </div>
+
+  <!-- ═══ MODIFIER UN MOT DE PASSE ══════════════════════════════ -->
+  <div class="section">
+    <h2>🔑 Changer le mot de passe d'un utilisateur existant</h2>
+    <p>Deux méthodes :</p>
+
+    <h3>Méthode 1 — Interface web (recommandé)</h3>
+    <ol class="step-list">
+      <li>Connectez-vous sur <strong>assistai-six.vercel.app</strong> avec <code>jamal@siaagilesolutions.com</code>.</li>
+      <li>Cliquez sur <strong>Administration</strong> dans la barre latérale.</li>
+      <li>Onglet <strong>Utilisateurs</strong> → trouvez l'utilisateur → cliquez <strong>🔑 Modifier</strong>.</li>
+      <li>Saisissez le nouveau mot de passe → <strong>Enregistrer</strong>.</li>
+    </ol>
+
+    <h3>Méthode 2 — Terminal</h3>
+    <div class="code-wrap">
+      <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+      <pre><span class="comment"># Remplacez l'email et le nouveau mot de passe</span>
+<span class="cmd">node</span> -e <span class="val">"
+const bcrypt = require('bcryptjs');
+const { PrismaClient } = require('./app/generated/prisma/client');
+// ... voir prisma/add-user.ts pour le pattern complet
+"</span>
+
+<span class="comment"># Ou plus simplement via l'API admin (si vous avez curl) :</span>
+<span class="comment"># (nécessite un cookie de session valide)</span></pre>
+    </div>
+    <div class="callout callout-tip">
+      <span class="callout-icon">✅</span>
+      <span>Utilisez toujours la <strong>Méthode 1</strong> (interface web) — c'est plus rapide et sans risque d'erreur.</span>
+    </div>
+  </div>
+
+  <!-- ═══ SUSPENDRE / RÉACTIVER ══════════════════════════════════ -->
+  <div class="section">
+    <h2>🚫 Suspendre ou réactiver un utilisateur</h2>
+    <p>Depuis l'interface web : <strong>Administration → Utilisateurs → bouton Actif/Suspendu</strong>.</p>
+    <p>Un utilisateur suspendu ne peut plus se connecter mais ses données sont conservées.</p>
+  </div>
+
+  <!-- ═══ ERREURS FRÉQUENTES ════════════════════════════════════ -->
+  <div class="section">
+    <h2>🔧 Erreurs fréquentes et solutions</h2>
+    <table>
+      <tr><th>Message d'erreur</th><th>Cause</th><th>Solution</th></tr>
+      <tr>
+        <td><code>❌ Entreprise introuvable</code></td>
+        <td>Le <code>TENANT_ID</code> est incorrect ou mal copié</td>
+        <td>Relancez <code>npx tsx prisma/list-tenants.ts</code> et recopiez l'ID exact</td>
+      </tr>
+      <tr>
+        <td><code>⚠️ L'email est déjà utilisé</code></td>
+        <td>Un compte existe déjà avec cet email</td>
+        <td>Vérifiez dans Administration → Utilisateurs. L'utilisateur a peut-être oublié son mot de passe.</td>
+      </tr>
+      <tr>
+        <td><code>P1000: Authentication failed</code></td>
+        <td>Le fichier <code>.env</code> est absent ou le mot de passe DB est incorrect</td>
+        <td>Vérifiez que vous êtes dans le bon dossier et que <code>.env</code> existe</td>
+      </tr>
+      <tr>
+        <td><code>Cannot find module</code></td>
+        <td>Node 20 non activé ou dépendances manquantes</td>
+        <td>Relancez <code>export PATH="/usr/local/opt/node@20/bin:$PATH"</code> puis <code>npm install</code></td>
+      </tr>
+      <tr>
+        <td><code>pyenv: pip: command not found</code></td>
+        <td>Message inoffensif de pyenv — ignorez-le</td>
+        <td>Ne rien faire — la commande s'est bien exécutée malgré ce message</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- ═══ RÉCAPITULATIF RAPIDE ══════════════════════════════════ -->
+  <div class="section">
+    <h2>⚡ Aide-mémoire ultra-rapide</h2>
+    <table>
+      <tr><th>Action</th><th>Commande</th></tr>
+      <tr><td>Voir les entreprises et IDs</td><td><code>npx tsx prisma/list-tenants.ts</code></td></tr>
+      <tr><td>Ajouter un utilisateur (entreprise existante)</td><td><code>EMAIL="…" NAME="…" TENANT_ID="…" PASSWORD="…" npx tsx prisma/add-user.ts</code></td></tr>
+      <tr><td>Créer une entreprise + premier utilisateur</td><td><code>COMPANY="…" EMAIL="…" NAME="…" PASSWORD="…" npx tsx prisma/create-company.ts</code></td></tr>
+      <tr><td>Changer un mot de passe</td><td>Interface web → Administration → 🔑 Modifier</td></tr>
+      <tr><td>Suspendre un compte</td><td>Interface web → Administration → bouton Actif</td></tr>
+      <tr><td>Modifier le quota tokens</td><td>Interface web → Administration → Utilisation → ⚙ Configurer</td></tr>
+    </table>
+  </div>
+
+  <div class="footer">
+    Kamali — Guide Administrateur Interne &nbsp;·&nbsp; Ne pas diffuser &nbsp;·&nbsp; <span id="year"></span>
+  </div>
+
+</div>
+
+<script>
+  document.getElementById("year").textContent = new Date().getFullYear();
+
+  function switchTab(el, targetId) {
+    // deactivate all tabs and panels
+    el.closest(".section").querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    el.closest(".section").querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+    el.classList.add("active");
+    document.getElementById(targetId).classList.add("active");
+  }
+
+  function copyCode(btn) {
+    const pre = btn.nextElementSibling;
+    const text = pre.textContent.trim();
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = "✓ Copié !";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "Copier"; btn.classList.remove("copied"); }, 2000);
+    }).catch(() => {
+      // Fallback for older browsers
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      btn.textContent = "✓ Copié !";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "Copier"; btn.classList.remove("copied"); }, 2000);
+    });
+  }
+</script>
+</body>
+</html>

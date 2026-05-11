@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { MarkdownMessage } from "./MarkdownMessage";
 import ProjectPanel from "./ProjectPanel";
+import { MODEL_METADATA, type ModelId } from "@/lib/model-coefficients";
 
 interface Attachment {
   type: "image" | "text";
@@ -17,6 +18,14 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   attachments?: Attachment[];
+  model?: ModelId; // set on assistant messages
+  thinking?: string; // Extended Thinking content
+}
+
+interface TokenUsage {
+  used: number;
+  limit: number;
+  plan: string;
 }
 
 interface Conversation {
@@ -34,7 +43,14 @@ interface ProjectSummary {
   conversations: { id: string; title: string; updatedAt: string }[];
 }
 
-const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "AssistAI";
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME ?? "LIYA";
+
+// ── Model definitions (derived from MODEL_METADATA for single source of truth) ──
+const MODEL_OPTIONS = (Object.entries(MODEL_METADATA) as [ModelId, typeof MODEL_METADATA[ModelId]][]).map(
+  ([id, meta]) => ({ id, ...meta })
+);
+const DEFAULT_MODEL: ModelId = "claude-sonnet-4-5";
+
 const ACCEPTED_FILES =
   ".pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.html,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql,.jpg,.jpeg,.png,.gif,.webp";
 
@@ -62,6 +78,91 @@ export default function ChatInterface({
   const [streaming, setStreaming] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+
+  // ── Token usage ───────────────────────────────────────────────
+  const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
+
+  useEffect(() => {
+    fetch("/api/usage")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setTokenUsage(data); })
+      .catch(() => {});
+  }, []);
+
+  // Refresh usage after each message completes
+  function refreshUsage() {
+    fetch("/api/usage")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setTokenUsage(data); })
+      .catch(() => {});
+  }
+
+  // ── Extended Thinking ─────────────────────────────────────────
+  const [extendedThinking, setExtendedThinking] = useState(false);
+
+  // ── Model selection (persisted to localStorage) ──────────────
+  const [model, setModel] = useState<ModelId>(() => {
+    if (typeof window === "undefined") return DEFAULT_MODEL;
+    const saved = localStorage.getItem("kamali_model");
+    return (MODEL_OPTIONS.map((m) => m.id) as string[]).includes(saved ?? "")
+      ? (saved as ModelId)
+      : DEFAULT_MODEL;
+  });
+
+  // ── Opus toast ────────────────────────────────────────────────
+  const [opusToast, setOpusToast] = useState(false);
+
+  function selectModel(id: ModelId) {
+    setModel(id);
+    localStorage.setItem("kamali_model", id);
+    if (id === "claude-opus-4-5") {
+      const seen = typeof window !== "undefined" && localStorage.getItem("liya_opus_toast_seen");
+      if (!seen) {
+        setOpusToast(true);
+        localStorage.setItem("liya_opus_toast_seen", "1");
+        setTimeout(() => setOpusToast(false), 5000);
+      }
+    }
+  }
+
+  // ── Conversation rename ───────────────────────────────────────
+  const [renamingConvId, setRenamingConvId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  async function commitRename(id: string) {
+    const trimmed = renameValue.trim();
+    if (trimmed) {
+      await fetch(`/api/conversations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: trimmed }),
+      });
+      await loadConversations();
+    }
+    setRenamingConvId(null);
+  }
+
+  // ── Export conversation ───────────────────────────────────────
+  function exportConversation() {
+    if (messages.length === 0) return;
+    const lines: string[] = [`# Conversation ${APP_NAME}\n`, `_Exporté le ${new Date().toLocaleString("fr-FR")}_\n`];
+    for (const m of messages) {
+      if (m.role === "user") {
+        lines.push(`\n---\n\n**Vous**\n\n${m.content}`);
+      } else {
+        const modelLabel = MODEL_OPTIONS.find((o) => o.id === m.model)?.label ?? APP_NAME;
+        lines.push(`\n---\n\n**${modelLabel}**\n\n${m.thinking ? `> 💭 *Réflexion interne disponible*\n\n` : ""}${m.content}`);
+      }
+    }
+    const md = lines.join("\n");
+    const blob = new Blob([md], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `conversation-kamali-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   // ── UI ───────────────────────────────────────────────────────
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -169,13 +270,14 @@ export default function ChatInterface({
     attachs: Attachment[],
     convId: string | null,
     projId: string | null,
-    isRegen: boolean
+    isRegen: boolean,
+    selectedModel: ModelId = model
   ) {
     setStreaming(true);
     setMessages((prev) => [
       ...prev,
       { role: "user", content: text, attachments: attachs },
-      { role: "assistant", content: "" },
+      { role: "assistant", content: "", model: selectedModel },
     ]);
 
     try {
@@ -188,6 +290,8 @@ export default function ChatInterface({
           attachments: attachs,
           regenerate: isRegen,
           projectId: projId,
+          model: selectedModel,
+          extendedThinking: extendedThinking && selectedModel !== "claude-haiku-4-5",
         }),
       });
 
@@ -219,14 +323,29 @@ export default function ChatInterface({
         for (const line of lines) {
           if (!line.startsWith("data: ")) continue;
           const raw = line.slice(6);
-          if (raw === "[DONE]") { await loadConversations(); break; }
+          if (raw === "[DONE]") { await loadConversations(); refreshUsage(); break; }
           try {
             const payload = JSON.parse(raw);
             if (payload.conversationId) setCurrentConvId(payload.conversationId);
+            if (payload.model) {
+              setMessages((prev) => {
+                const copy = [...prev];
+                copy[copy.length - 1] = { ...copy[copy.length - 1], model: payload.model as ModelId };
+                return copy;
+              });
+            }
+            if (payload.thinking) {
+              setMessages((prev) => {
+                const copy = [...prev];
+                const last = copy[copy.length - 1];
+                copy[copy.length - 1] = { ...last, thinking: (last.thinking ?? "") + payload.thinking };
+                return copy;
+              });
+            }
             if (payload.text) {
               setMessages((prev) => {
                 const copy = [...prev];
-                copy[copy.length - 1] = { role: "assistant", content: copy[copy.length - 1].content + payload.text };
+                copy[copy.length - 1] = { ...copy[copy.length - 1], content: copy[copy.length - 1].content + payload.text };
                 return copy;
               });
             }
@@ -257,7 +376,7 @@ export default function ChatInterface({
     setInput("");
     setPendingAttachments([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    doSend(text, attachs, currentConvId, currentProjectId, false);
+    doSend(text, attachs, currentConvId, currentProjectId, false, model);
   }
 
   function regenerate() {
@@ -266,7 +385,7 @@ export default function ChatInterface({
     if (copy[copy.length - 1].role !== "assistant" || copy[copy.length - 2].role !== "user") return;
     const lastUser = copy[copy.length - 2];
     setMessages(copy.slice(0, -2));
-    doSend(lastUser.content, lastUser.attachments ?? [], currentConvId, currentProjectId, true);
+    doSend(lastUser.content, lastUser.attachments ?? [], currentConvId, currentProjectId, true, model);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -300,11 +419,21 @@ export default function ChatInterface({
     setPendingAttachments((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  // ── Files already in conversation context ────────────────────
+  // Extract filenames from stored messages (format: "[Fichier : name]" or "[Image : name]")
+  const filesInContext = messages
+    .filter((m) => m.role === "user")
+    .flatMap((m) => {
+      const matches = [...m.content.matchAll(/\[(?:Fichier|Image) : ([^\]]+)\]/g)];
+      return matches.map((match) => match[1]);
+    })
+    .filter((v, i, a) => a.indexOf(v) === i); // deduplicate
+
   // ── Current project info (for chat header) ────────────────────
   const currentProject = currentProjectId ? projects.find((p) => p.id === currentProjectId) : null;
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden">
+    <div className="flex h-screen bg-aria-sand overflow-hidden">
       {/* Sidebar overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/30 z-10 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -313,7 +442,7 @@ export default function ChatInterface({
       {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-20 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <span className="font-bold text-indigo-600 text-lg">{APP_NAME}</span>
+          <span className="font-bold text-aria-indigo font-display text-lg">{APP_NAME}</span>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2">
@@ -322,7 +451,7 @@ export default function ChatInterface({
           <div className="px-3 mb-2">
             <button
               onClick={() => newConversation()}
-              className="w-full bg-indigo-600 text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors"
+              className="w-full bg-aria-terracotta text-white rounded-lg px-3 py-2 text-sm font-medium hover:bg-aria-terracotta-dark transition-colors"
             >
               + Nouvelle conversation
             </button>
@@ -331,10 +460,10 @@ export default function ChatInterface({
           {/* ── PROJECTS section ─────────────────────────── */}
           <div className="px-3 mb-1 mt-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-1">Projets</span>
+              <span className="text-[11px] font-semibold text-aria-stone uppercase tracking-wider px-1">Projets</span>
               <button
                 onClick={() => setShowNewProject((v) => !v)}
-                className="text-indigo-500 hover:text-indigo-700 text-xs px-1"
+                className="text-aria-indigo hover:text-aria-indigo text-xs px-1"
                 title="Nouveau projet"
               >
                 +
@@ -349,12 +478,12 @@ export default function ChatInterface({
                   onChange={(e) => setNewProjectName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") createProject(); if (e.key === "Escape") { setShowNewProject(false); setNewProjectName(""); } }}
                   placeholder="Nom du projet…"
-                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-aria-indigo focus:ring-0"
                 />
                 <button
                   onClick={createProject}
                   disabled={creatingProject || !newProjectName.trim()}
-                  className="text-xs bg-indigo-600 text-white px-2 py-1 rounded-lg disabled:opacity-50"
+                  className="text-xs bg-aria-terracotta text-white px-2 py-1 rounded-lg disabled:opacity-50"
                 >
                   ✓
                 </button>
@@ -372,7 +501,7 @@ export default function ChatInterface({
             return (
               <div key={proj.id}>
                 <div
-                  className={`group flex items-center gap-1 px-3 py-1.5 cursor-pointer rounded-lg mx-1 text-sm ${view === "project" && viewProjectId === proj.id ? "bg-indigo-50 text-indigo-700" : "text-gray-700 hover:bg-gray-100"}`}
+                  className={`group flex items-center gap-1 px-3 py-1.5 cursor-pointer rounded-lg mx-1 text-sm ${view === "project" && viewProjectId === proj.id ? "bg-aria-indigo-light text-aria-indigo" : "text-aria-anthracite hover:bg-aria-sand"}`}
                 >
                   <button
                     onClick={() => toggleProjectExpand(proj.id)}
@@ -388,7 +517,7 @@ export default function ChatInterface({
                   </span>
                   <button
                     onClick={() => { newConversation(proj.id); if (!isExpanded) toggleProjectExpand(proj.id); }}
-                    className="opacity-0 group-hover:opacity-100 text-indigo-500 hover:text-indigo-700 text-xs"
+                    className="opacity-0 group-hover:opacity-100 text-aria-indigo text-xs"
                     title="Nouvelle conversation dans ce projet"
                   >
                     +
@@ -404,7 +533,7 @@ export default function ChatInterface({
                       <div
                         key={c.id}
                         onClick={() => loadConversation(c.id, proj.id)}
-                        className={`group flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer text-xs ${currentConvId === c.id && view === "chat" ? "bg-indigo-50 text-indigo-700" : "text-gray-600 hover:bg-gray-100"}`}
+                        className={`group flex items-center justify-between px-2 py-1.5 rounded-lg cursor-pointer text-xs ${currentConvId === c.id && view === "chat" ? "bg-aria-indigo-light text-aria-indigo" : "text-aria-stone hover:bg-aria-sand"}`}
                       >
                         <span className="truncate flex-1">{c.title}</span>
                         <button
@@ -422,21 +551,45 @@ export default function ChatInterface({
           {/* ── CONVERSATIONS section ─────────────────────── */}
           {noProjectConvs.length > 0 && (
             <div className="mt-3 px-3 mb-1">
-              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-1">Conversations</span>
+              <span className="text-[11px] font-semibold text-aria-stone uppercase tracking-wider px-1">Conversations</span>
             </div>
           )}
 
           {noProjectConvs.map((c) => (
             <div
               key={c.id}
-              onClick={() => loadConversation(c.id)}
-              className={`group flex items-center justify-between px-3 py-2 mx-1 rounded-lg cursor-pointer text-sm ${currentConvId === c.id && view === "chat" ? "bg-indigo-50 text-indigo-700" : "text-gray-700 hover:bg-gray-100"}`}
+              onClick={() => { if (renamingConvId !== c.id) loadConversation(c.id); }}
+              className={`group flex items-center justify-between px-3 py-2 mx-1 rounded-lg cursor-pointer text-sm ${currentConvId === c.id && view === "chat" ? "bg-aria-indigo-light text-aria-indigo" : "text-aria-anthracite hover:bg-aria-sand"}`}
             >
-              <span className="truncate flex-1">{c.title}</span>
-              <button
-                onClick={(e) => deleteConversation(c.id, e)}
-                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 ml-1 text-xs px-1"
-              >✕</button>
+              {renamingConvId === c.id ? (
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={() => commitRename(c.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitRename(c.id);
+                    if (e.key === "Escape") setRenamingConvId(null);
+                    e.stopPropagation();
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex-1 text-xs bg-white border border-aria-indigo/50 rounded px-1.5 py-0.5 focus:outline-none focus:ring-0 text-gray-800"
+                />
+              ) : (
+                <>
+                  <span
+                    className="truncate flex-1"
+                    onDoubleClick={(e) => { e.stopPropagation(); setRenameValue(c.title); setRenamingConvId(c.id); }}
+                    title="Double-cliquer pour renommer"
+                  >
+                    {c.title}
+                  </span>
+                  <button
+                    onClick={(e) => deleteConversation(c.id, e)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 ml-1 text-xs px-1"
+                  >✕</button>
+                </>
+              )}
             </div>
           ))}
 
@@ -446,18 +599,49 @@ export default function ChatInterface({
         </nav>
 
         {/* Footer */}
-        <div className="p-3 border-t border-gray-100 space-y-1">
+        <div className="p-3 border-t border-gray-100 space-y-2">
+          {/* Token usage bar */}
+          {tokenUsage && (
+            <div className="space-y-1 px-1">
+              <div className="flex items-center justify-between text-[10px] text-gray-400">
+                <span>Tokens ce mois</span>
+                <span className="font-medium text-gray-500">
+                  {(tokenUsage.used / 1000).toFixed(0)}k / {(tokenUsage.limit / 1000).toFixed(0)}k
+                </span>
+              </div>
+              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    tokenUsage.used / tokenUsage.limit > 0.9
+                      ? "bg-red-400"
+                      : tokenUsage.used / tokenUsage.limit > 0.7
+                      ? "bg-amber-400"
+                      : "bg-aria-indigo"
+                  }`}
+                  style={{ width: `${Math.min(100, (tokenUsage.used / tokenUsage.limit) * 100).toFixed(1)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {isAdmin && (
-            <Link href="/admin" className="block w-full text-center text-xs text-indigo-600 hover:underline py-1">
+            <Link href="/admin" className="block w-full text-center text-xs text-aria-indigo hover:underline py-1">
               Administration
             </Link>
           )}
+          <Link href="/billing" className="flex items-center gap-1.5 w-full text-xs text-aria-stone hover:text-aria-indigo hover:bg-aria-indigo-light rounded-lg px-2 py-1.5 transition-colors">
+            <span>💳</span>
+            <span>Facturation</span>
+          </Link>
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 truncate flex-1">{userName}</span>
             <button onClick={() => signOut({ callbackUrl: "/" })} className="text-xs text-gray-500 hover:text-red-500 ml-2">
               Déconnexion
             </button>
           </div>
+          <p className="text-[10px] text-gray-300 text-center pt-1">
+            Powered by <span className="text-orange-400 font-medium">Claude</span>
+          </p>
         </div>
       </aside>
 
@@ -492,15 +676,15 @@ export default function ChatInterface({
           <>
             {/* Project context banner */}
             {currentProject && (
-              <div className="bg-indigo-50 border-b border-indigo-100 px-4 py-2 flex items-center gap-2 text-sm">
-                <span className="text-indigo-500">📁</span>
-                <span className="text-indigo-700 font-medium">{currentProject.name}</span>
-                <span className="text-indigo-400 text-xs ml-auto">
+              <div className="bg-aria-indigo-light border-b border-aria-indigo/10 px-4 py-2 flex items-center gap-2 text-sm">
+                <span className="text-aria-indigo">📁</span>
+                <span className="text-aria-indigo font-medium">{currentProject.name}</span>
+                <span className="text-aria-stone text-xs ml-auto">
                   {currentProject.documents.length} doc{currentProject.documents.length !== 1 ? "s" : ""} · contexte actif
                 </span>
                 <button
                   onClick={() => openProject(currentProject.id)}
-                  className="text-xs text-indigo-600 hover:underline ml-2"
+                  className="text-xs text-aria-indigo hover:underline ml-2"
                 >
                   ⚙ Gérer
                 </button>
@@ -535,6 +719,7 @@ export default function ChatInterface({
                       isLast={i === messages.length - 1}
                       streaming={streaming}
                       onRegenerate={regenerate}
+                      currentModel={model}
                     />
                   )}
                 </div>
@@ -553,15 +738,113 @@ export default function ChatInterface({
               </div>
             )}
 
+            {/* Files already in context (from previous messages in this conversation) */}
+            {filesInContext.length > 0 && (
+              <div className="bg-amber-50 border-t border-amber-100 px-4 py-1.5">
+                <div className="max-w-3xl mx-auto flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-semibold text-amber-600 uppercase tracking-wide flex-shrink-0">
+                    📂 En contexte :
+                  </span>
+                  {filesInContext.map((fname, i) => (
+                    <span
+                      key={i}
+                      className="text-[11px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1"
+                    >
+                      <span>📄</span>
+                      <span className="truncate max-w-[150px]">{fname}</span>
+                    </span>
+                  ))}
+                  <span className="text-[10px] text-amber-500 italic ml-auto">
+                    Claude a accès à ces fichiers
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Opus toast notification */}
+            {opusToast && (
+              <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-purple-700 text-white text-xs px-4 py-2.5 rounded-xl shadow-lg max-w-xs text-center animate-fade-in">
+                Opus consomme 5× plus de tokens que Sonnet. Votre quota sera déduit en conséquence.
+              </div>
+            )}
+
+            {/* Model selector + Extended Thinking + Export */}
+            <div className="bg-white border-t border-gray-100 px-4 pt-2 pb-1">
+              <div className="max-w-3xl mx-auto flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] text-gray-400 mr-1 flex-shrink-0">Modèle :</span>
+                {MODEL_OPTIONS.map((opt) => {
+                  const active = model === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      onClick={() => selectModel(opt.id as ModelId)}
+                      title={`${opt.description} — ${opt.coeffLabel} tokens`}
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                        active ? opt.activeBg : `${opt.bg} ${opt.color} hover:opacity-80`
+                      }`}
+                    >
+                      <span>{opt.icon}</span>
+                      <span>{opt.label}</span>
+                      <span className={`text-[9px] opacity-70 font-normal ${active ? "opacity-80" : ""}`}>
+                        {opt.coeffLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+                {model === "claude-opus-4-5" && (
+                  <span className="text-[10px] text-purple-500 ml-1 italic">
+                    · consomme 5× plus de tokens
+                  </span>
+                )}
+
+                {/* Extended Thinking toggle */}
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={() => model !== "claude-haiku-4-5" && setExtendedThinking((v) => !v)}
+                    disabled={model === "claude-haiku-4-5"}
+                    title={
+                      model === "claude-haiku-4-5"
+                        ? "Non disponible avec Haiku"
+                        : extendedThinking
+                        ? "Désactiver la réflexion étendue"
+                        : "Activer la réflexion étendue (Sonnet/Opus)"
+                    }
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                      model === "claude-haiku-4-5"
+                        ? "border-gray-200 text-gray-300 cursor-not-allowed bg-white"
+                        : extendedThinking
+                        ? "bg-violet-600 border-violet-600 text-white"
+                        : "border-gray-200 text-gray-500 bg-white hover:border-violet-300 hover:text-violet-600"
+                    }`}
+                  >
+                    <span>🧠</span>
+                    <span>Réflexion</span>
+                  </button>
+
+                  {/* Export conversation */}
+                  {messages.length > 0 && (
+                    <button
+                      onClick={exportConversation}
+                      title="Exporter la conversation en Markdown"
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-gray-200 text-gray-500 bg-white hover:border-aria-indigo/40 hover:text-aria-indigo transition-all"
+                    >
+                      <span>📥</span>
+                      <span>Exporter</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Input */}
-            <div className="border-t border-gray-200 bg-white px-4 py-3">
+            <div className="border-t border-gray-100 bg-white px-4 py-3">
               <div className="flex items-end gap-2 max-w-3xl mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept={ACCEPTED_FILES} className="hidden" onChange={handleFileSelect} />
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={streaming || uploading}
                   title="Joindre un fichier"
-                  className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl border transition-colors ${uploading ? "border-indigo-300 text-indigo-400 animate-pulse" : "border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600"} disabled:opacity-40`}
+                  className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl border transition-colors ${uploading ? "border-aria-indigo/40 text-aria-indigo animate-pulse" : "border-gray-300 text-gray-500 hover:border-aria-indigo hover:text-aria-indigo"} disabled:opacity-40`}
                 >
                   {uploading ? "⏳" : "📎"}
                 </button>
@@ -573,12 +856,12 @@ export default function ChatInterface({
                   rows={1}
                   disabled={streaming}
                   placeholder="Tapez votre message… (Entrée pour envoyer)"
-                  className="flex-1 resize-none border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 disabled:opacity-50 max-h-28 leading-relaxed"
+                  className="flex-1 resize-none border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-aria-indigo focus:ring-0 disabled:opacity-50 max-h-28 leading-relaxed"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={streaming || (!input.trim() && pendingAttachments.length === 0)}
-                  className="bg-indigo-600 text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-indigo-700 transition-colors disabled:opacity-40 flex-shrink-0"
+                  className="bg-aria-terracotta text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-aria-terracotta-dark transition-colors disabled:opacity-40 flex-shrink-0"
                 >
                   {streaming ? "..." : "Envoyer"}
                 </button>
@@ -602,12 +885,12 @@ function UserBubble({ message }: { message: Message }) {
         <img key={i} src={`data:${img.mimeType};base64,${img.content}`} alt={img.name} className="rounded-xl max-h-64 w-auto block ml-auto" />
       ))}
       {files.map((f, i) => (
-        <div key={i} className="flex items-center gap-1.5 bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-xl ml-auto w-fit">
+        <div key={i} className="flex items-center gap-1.5 bg-aria-indigo text-white text-xs px-3 py-1.5 rounded-xl ml-auto w-fit">
           <span>📄</span><span className="truncate max-w-[200px]">{f.name}</span>
         </div>
       ))}
       {message.content && (
-        <div className="bg-indigo-600 text-white rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
+        <div className="bg-aria-indigo text-white rounded-2xl rounded-br-sm px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
           {message.content}
         </div>
       )}
@@ -615,15 +898,59 @@ function UserBubble({ message }: { message: Message }) {
   );
 }
 
-function AssistantBubble({ message, isLast, streaming, onRegenerate }: {
-  message: Message; isLast: boolean; streaming: boolean; onRegenerate: () => void;
+function AssistantBubble({ message, isLast, streaming, onRegenerate, currentModel }: {
+  message: Message; isLast: boolean; streaming: boolean; onRegenerate: () => void; currentModel: ModelId;
 }) {
   const [copied, setCopied] = useState(false);
+  const [thinkingOpen, setThinkingOpen] = useState(false);
   function handleCopy() { navigator.clipboard.writeText(message.content); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+
+  // Which model generated this message?
+  const msgModel = message.model ?? currentModel;
+  const modelMeta = MODEL_OPTIONS.find((m) => m.id === msgModel);
+
   return (
     <div className="max-w-[85%] sm:max-w-[75%] group">
+      {/* Model badge — shown above each assistant bubble */}
+      {modelMeta && (
+        <div className="flex items-center gap-1 mb-1">
+          <span className="text-[10px] text-gray-400 flex items-center gap-0.5">
+            <span>{modelMeta.icon}</span>
+            <span className={`font-medium ${modelMeta.color}`}>{modelMeta.label}</span>
+          </span>
+        </div>
+      )}
+
+      {/* Extended Thinking collapsible block */}
+      {message.thinking && (
+        <div className="mb-2">
+          <button
+            onClick={() => setThinkingOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-[11px] text-violet-500 hover:text-violet-700 font-medium transition-colors"
+          >
+            <span>🧠</span>
+            <span>Réflexion interne</span>
+            <span className="text-[10px]">{thinkingOpen ? "▲ masquer" : "▼ afficher"}</span>
+          </button>
+          {thinkingOpen && (
+            <div className="mt-1.5 bg-violet-50 border border-violet-200 rounded-xl px-3 py-2.5 text-xs text-violet-800 whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto font-mono">
+              {message.thinking}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Streaming thinking indicator (while thinking but no answer yet) */}
+      {isLast && streaming && message.thinking && message.content === "" && (
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] text-violet-400 italic">
+          <span>🧠</span>
+          <span>En train de réfléchir…</span>
+          <TypingIndicator />
+        </div>
+      )}
+
       <div className="bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-bl-sm shadow-sm px-4 py-3">
-        {message.content === "" && isLast && streaming ? <TypingIndicator /> : <MarkdownMessage content={message.content} />}
+        {message.content === "" && isLast && streaming && !message.thinking ? <TypingIndicator /> : <MarkdownMessage content={message.content} />}
       </div>
       {message.content && (
         <div className={`flex items-center gap-1 mt-1 transition-opacity ${isLast ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>

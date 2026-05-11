@@ -1,12 +1,69 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import type { Components } from "react-markdown";
 import type { SyntaxHighlighterProps } from "react-syntax-highlighter";
+
+// ── Preview modal ─────────────────────────────────────────────────
+const PREVIEWABLE = ["html", "htm", "svg", "mermaid"];
+
+function PreviewModal({ code, language, onClose }: { code: string; language: string; onClose: () => void }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    if (!iframeRef.current) return;
+    const doc = iframeRef.current.contentDocument;
+    if (!doc) return;
+
+    if (language === "svg") {
+      doc.open();
+      doc.write(`<!DOCTYPE html><html><body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8f9fa;">${code}</body></html>`);
+      doc.close();
+    } else if (language === "mermaid") {
+      doc.open();
+      doc.write(`<!DOCTYPE html><html><head>
+        <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"><\/script>
+        <style>body{margin:16px;font-family:sans-serif;background:#fff;}</style>
+      </head><body>
+        <div class="mermaid">${code}</div>
+        <script>mermaid.initialize({startOnLoad:true});<\/script>
+      </body></html>`);
+      doc.close();
+    } else {
+      // HTML — inject directly
+      doc.open();
+      doc.write(code);
+      doc.close();
+    }
+  }, [code, language]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+        style={{ width: "min(90vw, 900px)", height: "min(85vh, 700px)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-2.5 bg-gray-100 border-b border-gray-200">
+          <span className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+            ▶ Aperçu · {language}
+          </span>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-lg leading-none px-1">✕</button>
+        </div>
+        <iframe
+          ref={iframeRef}
+          sandbox="allow-scripts allow-same-origin"
+          className="flex-1 w-full border-0"
+          title="preview"
+        />
+      </div>
+    </div>
+  );
+}
 
 const LANG_EXT: Record<string, string> = {
   javascript: "js", js: "js", typescript: "ts", ts: "ts",
@@ -21,6 +78,8 @@ const LANG_EXT: Record<string, string> = {
 
 function CodeBlock({ language, code }: { language: string; code: string }) {
   const [copied, setCopied] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const canPreview = PREVIEWABLE.includes((language || "").toLowerCase());
 
   function handleCopy() {
     navigator.clipboard.writeText(code);
@@ -48,26 +107,39 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   };
 
   return (
-    <div className="my-3 rounded-lg overflow-hidden border border-gray-200">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-100 border-b border-gray-200">
-        <span className="text-xs text-gray-500 font-mono">{language || "code"}</span>
-        <div className="flex gap-1">
-          <button
-            onClick={handleCopy}
-            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-0.5 rounded hover:bg-gray-200 transition-colors"
-          >
-            {copied ? "✓ Copié" : "📋 Copier"}
-          </button>
-          <button
-            onClick={handleDownload}
-            className="text-xs text-gray-500 hover:text-gray-800 px-2 py-0.5 rounded hover:bg-gray-200 transition-colors"
-          >
-            ⬇ Fichier
-          </button>
+    <>
+      {preview && (
+        <PreviewModal code={code} language={language.toLowerCase()} onClose={() => setPreview(false)} />
+      )}
+      <div className="my-3 rounded-lg overflow-hidden border border-gray-200">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-gray-100 border-b border-gray-200">
+          <span className="text-xs text-gray-500 font-mono">{language || "code"}</span>
+          <div className="flex gap-1">
+            {canPreview && (
+              <button
+                onClick={() => setPreview(true)}
+                className="text-xs text-indigo-600 hover:text-indigo-900 px-2 py-0.5 rounded hover:bg-indigo-100 transition-colors font-medium"
+              >
+                ▶ Aperçu
+              </button>
+            )}
+            <button
+              onClick={handleCopy}
+              className="text-xs text-gray-500 hover:text-gray-800 px-2 py-0.5 rounded hover:bg-gray-200 transition-colors"
+            >
+              {copied ? "✓ Copié" : "📋 Copier"}
+            </button>
+            <button
+              onClick={handleDownload}
+              className="text-xs text-gray-500 hover:text-gray-800 px-2 py-0.5 rounded hover:bg-gray-200 transition-colors"
+            >
+              ⬇ Fichier
+            </button>
+          </div>
         </div>
+        <SyntaxHighlighter {...highlighterProps} />
       </div>
-      <SyntaxHighlighter {...highlighterProps} />
-    </div>
+    </>
   );
 }
 

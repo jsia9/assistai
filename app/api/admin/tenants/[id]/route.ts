@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { audit } from "@/lib/audit";
 
 export async function PATCH(
   req: Request,
@@ -15,6 +16,13 @@ export async function PATCH(
   const { id } = await params;
   const body = await req.json();
 
+  // Snapshot the old values so the audit log captures the before/after diff.
+  const before = await prisma.tenant.findUnique({
+    where: { id },
+    select: { monthlyTokenLimit: true, plan: true, active: true },
+  });
+  if (!before) return new Response("Tenant not found", { status: 404 });
+
   const updated = await prisma.tenant.update({
     where: { id },
     data: {
@@ -26,6 +34,28 @@ export async function PATCH(
       ...(body.systemPrompt !== undefined && { systemPrompt: body.systemPrompt }),
     },
   });
+
+  // Log a granular event per field changed so anomaly detection can fire on
+  // patterns like "5 quota changes in 10 minutes".
+  if (body.monthlyTokenLimit !== undefined && before.monthlyTokenLimit !== updated.monthlyTokenLimit) {
+    await audit(req, session, "tenant.quota_change",
+      { type: "Tenant", id },
+      { from: before.monthlyTokenLimit, to: updated.monthlyTokenLimit });
+  }
+  if (body.plan !== undefined && before.plan !== updated.plan) {
+    await audit(req, session, "tenant.plan_change",
+      { type: "Tenant", id },
+      { from: before.plan, to: updated.plan });
+  }
+  // Catch-all for systemPrompt and active.
+  if (body.systemPrompt !== undefined || body.active !== undefined) {
+    await audit(req, session, "tenant.update",
+      { type: "Tenant", id },
+      {
+        ...(body.systemPrompt !== undefined && { systemPromptChanged: true }),
+        ...(body.active !== undefined && { active: { from: before.active, to: updated.active } }),
+      });
+  }
 
   return Response.json(updated);
 }

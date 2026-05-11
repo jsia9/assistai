@@ -1,9 +1,76 @@
 @import "tailwindcss";
 
+/* ── ARIA Design Tokens ─────────────────────────────────────────────────────
+   Tailwind v4 @theme registers these as utility classes:
+   bg-aria-indigo, text-aria-terracotta, border-aria-sand, font-display, etc.
+   ─────────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Brand palette */
+  --color-aria-indigo:          #1A2A4F; /* Indigo Profond — brand / nav / titles */
+  --color-aria-terracotta:      #C8543A; /* Terre de Sienne — primary CTA */
+  --color-aria-ochre:           #D9A441; /* Ocre Sahel — accent / warning */
+  --color-aria-sand:            #F5F1EA; /* Sable Cassé — main background (70%) */
+  --color-aria-sand-dark:       #EDE9E0; /* Sable légèrement plus foncé pour hover */
+  --color-aria-anthracite:      #1F1F23; /* Anthracite — main text */
+  --color-aria-stone:           #6B6F76; /* Gris Pierre — muted text */
+
+  /* Functional */
+  --color-aria-emerald:         #2D7A4F; /* Vert Émeraude Sahel — success */
+  --color-aria-red:             #B82929; /* Rouge Profond — error / critical */
+  --color-aria-slate:           #3D5A80; /* Bleu Ardoise — info */
+
+  /* Hover / active variants */
+  --color-aria-terracotta-dark: #B04530; /* Terracotta assombri (-8% L) pour hover CTA */
+  --color-aria-indigo-light:    #EEF1F8; /* Indigo très clair — fond actif sidebar */
+
+  /* Dark mode */
+  --color-aria-dark-bg:         #0F1428;
+  --color-aria-dark-card:       #1A2238;
+  --color-aria-dark-text:       #F0EBE3;
+  --color-aria-dark-muted:      #A0A4AD;
+  --color-aria-dark-cta:        #E2684E;
+  --color-aria-dark-brand:      #A8B5DB;
+
+  /* Typography — mapped from next/font CSS variables set in layout.tsx */
+  --font-display: var(--font-fraunces),   "Fraunces",          serif;
+  --font-sans:    var(--font-inter),      "Inter",             sans-serif;
+  --font-mono:    var(--font-jetbrains),  "JetBrains Mono",   monospace;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
 :root {
-  --font-geist: "Geist", sans-serif;
+  /* CSS variables for inline-style usage outside Tailwind */
+  --aria-indigo:      #1A2A4F;
+  --aria-terracotta:  #C8543A;
+  --aria-ochre:       #D9A441;
+  --aria-sand:        #F5F1EA;
+  --aria-anthracite:  #1F1F23;
+  --aria-stone:       #6B6F76;
+  --aria-emerald:     #2D7A4F;
+  --aria-red:         #B82929;
 }
 
 body {
-  font-family: var(--font-geist, sans-serif);
+  font-family: var(--font-sans);
+  color: var(--aria-anthracite);
+  background-color: var(--aria-sand);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Code blocks */
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+}
+
+/* Focus ring — Ocre Sahel (charte §9.2) */
+*:focus-visible {
+  outline: 2px solid var(--aria-ochre);
+  outline-offset: 2px;
+}
+
+/* Scrollbar — discret sur fond sable */
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: #C8C2B5; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--aria-stone); }

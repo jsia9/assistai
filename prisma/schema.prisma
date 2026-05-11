@@ -14,6 +14,8 @@ model Tenant {
   active            Boolean   @default(true)
   monthlyTokenLimit Int       @default(500000)
   systemPrompt      String?   @db.Text
+  country           String?   // "ML" | "SN" | "CI" | etc.
+  preferredProvider String?   // "cinetpay" | "paydunya" | "wave"
   createdAt         DateTime  @default(now())
   users             User[]
   messages          Message[]
@@ -84,6 +86,10 @@ model Message {
   content          String       @db.Text
   promptTokens     Int          @default(0)
   completionTokens Int          @default(0)
+  /// Tokens réels retournés par l'API Anthropic avant application du coefficient
+  realTokensUsed   Int?
+  /// Coefficient de facturation appliqué (Haiku=0.3, Sonnet=1.0, Opus=5.0)
+  modelCoefficient Float?
   createdAt        DateTime     @default(now())
 }
 
@@ -91,12 +97,52 @@ model Payment {
   id          String   @id @default(cuid())
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  amount      Float
-  currency    String   @default("USD")
-  method      String   @default("manual")
+  amountFcfa  Int      @default(0)          // montant en FCFA (source de vérité)
+  type        String   @default("subscription") // "subscription" | "topup"
+  tokensAdded Int      @default(0)          // tokens ajoutés (recharge uniquement)
+  method      String   @default("cash")
   reference   String?
-  period      String
+  period      String                        // "2026-05"
   notes       String?
   paidAt      DateTime @default(now())
   createdById String?
+  // Champs legacy (anciens paiements en USD)
+  amount      Float    @default(0)
+  currency    String   @default("XOF")
+  transactionId     String?   @unique // ARIA-{tenantId}-{ts}-{uuid}, null for old cash payments
+  providerName      String    @default("cash") // "cash" | "cinetpay"
+  providerRef       String?   // provider's own token/ref
+  operator          String?   // "OM" | "WAVE" | "MTN" | "MOOV" | "VISA" etc.
+  status            String    @default("PAID") // "PENDING" | "PAID" | "FAILED" | "CANCELLED"
+  initiatedAt       DateTime  @default(now())
+  failureReason     String?
+  rawProviderPayload Json?
+}
+
+/// Append-only security audit log. Never UPDATE or DELETE.
+/// Created in response to security audit (May 2026, ST-018/019).
+model AuditLog {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  // Who did it. actorId may be null for failed login attempts.
+  actorId     String?
+  actorEmail  String?
+  actorRole   String?
+  actorTenant String?
+  // What happened. action is a stable enum-like string, e.g. "login.success",
+  // "login.failure", "user.suspend", "user.password_reset", "payment.create",
+  // "tenant.update", "project.delete".
+  action      String
+  // What it was done to. Stored loosely so we can log across resource types.
+  targetType  String?  // "User" | "Tenant" | "Payment" | "Project" | "Conversation" | null
+  targetId    String?
+  // Context that helps incident response. Keep this JSON small.
+  metadata    Json?
+  // Where it came from.
+  ip          String?
+  userAgent   String?
+
+  @@index([action, createdAt])
+  @@index([actorId, createdAt])
+  @@index([targetType, targetId])
 }

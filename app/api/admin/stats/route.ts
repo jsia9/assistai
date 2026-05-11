@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { PLAN_PRICE_FCFA, fcfaToUsd, currentPeriod } from "@/lib/billing";
 
 const COST_PER_1K = 0.01;
 const MARKUP = 5;
@@ -15,6 +16,7 @@ export async function GET() {
   // Company admin only sees their own tenant; superadmin sees all
   const tenantFilter = role === "superadmin" ? undefined : { id: session.user.tenantId };
 
+  const period = currentPeriod();
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -33,8 +35,8 @@ export async function GET() {
             select: { promptTokens: true, completionTokens: true, createdAt: true, role: true },
           },
           payments: {
-            where: { period: startOfMonth.toISOString().slice(0, 7) },
-            select: { amount: true },
+            where: { period },
+            select: { amountFcfa: true, amount: true, type: true, tokensAdded: true },
           },
         },
       }),
@@ -73,7 +75,7 @@ export async function GET() {
       prisma.payment.findMany({
         where: tenantFilter ? { tenantId: tenantFilter.id } : undefined,
         orderBy: { paidAt: "desc" },
-        take: 50,
+        take: 100,
         include: { tenant: { select: { name: true } } },
       }),
     ]);
@@ -85,28 +87,36 @@ export async function GET() {
       0
     );
     const cost = (tokens / 1000) * COST_PER_1K;
-    const revenue = cost * MARKUP;
-    const paid = t.payments.reduce((s: number, p: { amount: number }) => s + p.amount, 0);
+    const estimatedRevenue = cost * MARKUP;
     const pctUsed = t.monthlyTokenLimit > 0 ? Math.min(100, (tokens / t.monthlyTokenLimit) * 100) : 0;
 
-    // per-user breakdown
-    const userStats = t.users.map((u: { id: string; email: string; lastActiveAt: Date }) => {
-      const userMsgs = t.messages.filter((m: { role: string }) => m.role === "user");
-      const userTokens = t.messages
-        .filter(() => true)
-        .reduce(
-          (s: number, m: { promptTokens: number; completionTokens: number }) =>
-            s + m.promptTokens + m.completionTokens,
-          0
-        );
-      return {
-        id: u.id,
-        email: u.email,
-        lastActiveAt: u.lastActiveAt,
-        messagesThisMonth: userMsgs.length,
-        tokensThisMonth: userTokens,
-      };
-    });
+    // Calculs FCFA — on privilégie amountFcfa (nouveau champ), fallback sur amount legacy
+    const subscriptionPayments = t.payments.filter(
+      (p: { type: string }) => p.type === "subscription"
+    );
+    const topupPayments = t.payments.filter(
+      (p: { type: string }) => p.type === "topup"
+    );
+
+    const amountPaidFcfa = subscriptionPayments.reduce(
+      (s: number, p: { amountFcfa: number; amount: number }) =>
+        // Si amountFcfa > 0 (nouveau), on l'utilise ; sinon on convertit amount (legacy USD)
+        s + (p.amountFcfa > 0 ? p.amountFcfa : Math.round(p.amount * 600)),
+      0
+    );
+    const topupFcfa = topupPayments.reduce(
+      (s: number, p: { amountFcfa: number; amount: number }) =>
+        s + (p.amountFcfa > 0 ? p.amountFcfa : Math.round(p.amount * 600)),
+      0
+    );
+    const topupTokensThisMonth = topupPayments.reduce(
+      (s: number, p: { tokensAdded: number }) => s + p.tokensAdded,
+      0
+    );
+
+    const planPriceFcfa = PLAN_PRICE_FCFA[t.plan] ?? 25_000;
+    const isPaidThisMonth = amountPaidFcfa >= planPriceFcfa;
+    const balanceFcfa = Math.max(0, planPriceFcfa - amountPaidFcfa);
 
     return {
       id: t.id,
@@ -118,15 +128,22 @@ export async function GET() {
       userCount: t.users.length,
       tokensThisMonth: tokens,
       estimatedCost: cost,
-      estimatedRevenue: revenue,
-      amountPaid: paid,
-      balance: revenue - paid,
+      estimatedRevenue,
+      // FCFA billing
+      planPriceFcfa,
+      amountPaidFcfa,
+      topupFcfa,
+      topupTokensThisMonth,
+      balanceFcfa,
+      isPaidThisMonth,
+      // USD equivalents
+      amountPaid: fcfaToUsd(amountPaidFcfa),
+      balance: fcfaToUsd(balanceFcfa),
       pctUsed,
-      userStats,
     };
   });
 
-  // per-user message counts this month (across all tenants)
+  // per-user message counts this month
   const usersWithStats = users.map((u) => ({
     ...u,
     messagesThisMonth: u.conversations.length,
@@ -143,12 +160,19 @@ export async function GET() {
     if (day in dailyBuckets) dailyBuckets[day] += 1;
   });
 
-  const totalRevenue = tenantsWithStats.reduce(
-    (s: number, t: { estimatedRevenue: number }) => s + t.estimatedRevenue,
+  const totalPaidFcfa = tenantsWithStats.reduce(
+    (s: number, t: { amountPaidFcfa: number }) => s + t.amountPaidFcfa,
     0
   );
-  const totalPaid = tenantsWithStats.reduce(
-    (s: number, t: { amountPaid: number }) => s + t.amountPaid,
+  const totalBalanceFcfa = tenantsWithStats.reduce(
+    (s: number, t: { balanceFcfa: number }) => s + t.balanceFcfa,
+    0
+  );
+  const overdueCount = tenantsWithStats.filter(
+    (t: { isPaidThisMonth: boolean; active: boolean }) => !t.isPaidThisMonth && t.active
+  ).length;
+  const totalRevenue = tenantsWithStats.reduce(
+    (s: number, t: { estimatedRevenue: number }) => s + t.estimatedRevenue,
     0
   );
 
@@ -157,8 +181,13 @@ export async function GET() {
     users: usersWithStats,
     messagesThisMonth: monthlyMessages,
     estimatedRevenue: totalRevenue,
-    totalPaid,
-    outstanding: totalRevenue - totalPaid,
+    totalPaid: fcfaToUsd(totalPaidFcfa),
+    outstanding: fcfaToUsd(totalBalanceFcfa),
+    // FCFA
+    totalPaidFcfa,
+    totalBalanceFcfa,
+    overdueCount,
+    period,
     dailyChart: Object.entries(dailyBuckets).map(([date, count]) => ({
       date,
       count,

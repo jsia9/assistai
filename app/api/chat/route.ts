@@ -4,9 +4,19 @@ import { prisma } from "@/lib/prisma";
 import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
+import { MODEL_COEFFICIENTS, DEFAULT_COEFFICIENT } from "@/lib/model-coefficients";
 
 const COST_PER_1K = 0.01;
 const MARKUP = 5;
+
+// Allowed model identifiers. Keep in sync with MODEL_OPTIONS in ChatInterface.tsx.
+const ALLOWED_MODELS = [
+  "claude-haiku-4-5",
+  "claude-sonnet-4-5",
+  "claude-opus-4-5",
+] as const;
+type AllowedModel = (typeof ALLOWED_MODELS)[number];
+const DEFAULT_MODEL: AllowedModel = "claude-sonnet-4-5";
 
 interface Attachment {
   type: "image" | "text";
@@ -27,13 +37,22 @@ export async function POST(req: NextRequest) {
     attachments = [],
     regenerate = false,
     projectId: bodyProjectId = null,
+    model: rawModel = DEFAULT_MODEL,
+    extendedThinking = false,
   } = body as {
     conversationId: string | null;
     message: string;
     attachments: Attachment[];
     regenerate: boolean;
     projectId: string | null;
+    model: string;
+    extendedThinking: boolean;
   };
+
+  // Validate model — fall back to default if client sends an unexpected value
+  const model: AllowedModel = (ALLOWED_MODELS as readonly string[]).includes(rawModel)
+    ? (rawModel as AllowedModel)
+    : DEFAULT_MODEL;
 
   if (!message?.trim()) return new Response("Message requis", { status: 400 });
 
@@ -185,31 +204,91 @@ export async function POST(req: NextRequest) {
     async start(controller) {
       try {
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ conversationId: convId })}\n\n`)
+          encoder.encode(`data: ${JSON.stringify({ conversationId: convId, model })}\n\n`)
         );
 
-        const anthropicStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4096,
+        // Extended Thinking requires Sonnet or Opus (not Haiku).
+        const thinkingEnabled =
+          extendedThinking && model !== "claude-haiku-4-5";
+
+        // Extended Thinking needs at least 16k max_tokens; give it 16k thinking + 4k answer.
+        const maxTokens = thinkingEnabled
+          ? 20000
+          : model === "claude-opus-4-5"
+          ? 8192
+          : 4096;
+
+        const streamParams: Parameters<typeof anthropic.messages.stream>[0] = {
+          model,
+          max_tokens: maxTokens,
           system: systemPrompt,
           messages,
-        });
+          ...(thinkingEnabled && {
+            thinking: { type: "enabled", budget_tokens: 10000 },
+          }),
+        };
+
+        const anthropicStream = anthropic.messages.stream(streamParams);
+
+        let thinkingContent = "";
 
         for await (const event of anthropicStream) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            fullContent += event.delta.text;
+          // Thinking block deltas (Extended Thinking)
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "thinking_delta"
+          ) {
+            thinkingContent += event.delta.thinking;
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`)
+              encoder.encode(
+                `data: ${JSON.stringify({ thinking: event.delta.thinking })}\n\n`
+              )
             );
           }
-          if (event.type === "message_delta" && event.usage) outputTokens = event.usage.output_tokens;
-          if (event.type === "message_start" && event.message.usage) inputTokens = event.message.usage.input_tokens;
+          // Regular text deltas
+          if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            fullContent += event.delta.text;
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ text: event.delta.text })}\n\n`
+              )
+            );
+          }
+          if (event.type === "message_delta" && event.usage)
+            outputTokens = event.usage.output_tokens;
+          if (event.type === "message_start" && event.message.usage)
+            inputTokens = event.message.usage.input_tokens;
         }
+
+        const coefficient = MODEL_COEFFICIENTS[model] ?? DEFAULT_COEFFICIENT;
+        const billedInput  = Math.ceil(inputTokens  * coefficient);
+        const billedOutput = Math.ceil(outputTokens * coefficient);
 
         await prisma.message.createMany({
           data: [
-            { conversationId: convId!, tenantId, role: "user", content: storedUserContent, promptTokens: inputTokens, completionTokens: 0 },
-            { conversationId: convId!, tenantId, role: "assistant", content: fullContent, promptTokens: 0, completionTokens: outputTokens },
+            {
+              conversationId: convId!,
+              tenantId,
+              role: "user",
+              content: storedUserContent,
+              promptTokens:     billedInput,
+              completionTokens: 0,
+              realTokensUsed:   inputTokens,
+              modelCoefficient: coefficient,
+            },
+            {
+              conversationId: convId!,
+              tenantId,
+              role: "assistant",
+              content: fullContent,
+              promptTokens:     0,
+              completionTokens: billedOutput,
+              realTokensUsed:   outputTokens,
+              modelCoefficient: coefficient,
+            },
           ],
         });
 
