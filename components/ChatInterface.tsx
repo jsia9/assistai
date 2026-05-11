@@ -111,7 +111,7 @@ export default function ChatInterface({
   // ── Model selection (persisted to localStorage) ──────────────
   const [model, setModel] = useState<ModelId>(() => {
     if (typeof window === "undefined") return DEFAULT_MODEL;
-    const saved = localStorage.getItem("kamali_model");
+    const saved = localStorage.getItem("liya_model") ?? localStorage.getItem("kamali_model");
     return (MODEL_OPTIONS.map((m) => m.id) as string[]).includes(saved ?? "")
       ? (saved as ModelId)
       : DEFAULT_MODEL;
@@ -122,7 +122,8 @@ export default function ChatInterface({
 
   function selectModel(id: ModelId) {
     setModel(id);
-    localStorage.setItem("kamali_model", id);
+    localStorage.setItem("liya_model", id);
+    localStorage.removeItem("kamali_model"); // legacy cleanup
     if (id === "claude-opus-4-5") {
       const seen = typeof window !== "undefined" && localStorage.getItem("liya_opus_toast_seen");
       if (!seen) {
@@ -167,7 +168,7 @@ export default function ChatInterface({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `conversation-kamali-${new Date().toISOString().slice(0, 10)}.md`;
+    a.download = `conversation-liya-${new Date().toISOString().slice(0, 10)}.md`;
     a.click();
     URL.revokeObjectURL(url);
   }

@@ -12,6 +12,33 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { locales, defaultLocale } from "@/i18n";
+
+// ── Locale routing helpers ─────────────────────────────────────────────────
+const PUBLIC_FILE = /\.(.*)$/; // static files have an extension
+
+function getLocaleFromRequest(req: NextRequest): string {
+  // 1. Check cookie set by LocaleSwitcher
+  const cookieLocale = req.cookies.get("NEXT_LOCALE")?.value;
+  if (cookieLocale && (locales as readonly string[]).includes(cookieLocale)) {
+    return cookieLocale;
+  }
+  // 2. Browser Accept-Language header
+  const acceptLang = req.headers.get("accept-language") ?? "";
+  for (const locale of locales) {
+    if (acceptLang.toLowerCase().startsWith(locale)) return locale;
+  }
+  return defaultLocale;
+}
+
+// Paths that should NOT be locale-prefixed
+const SKIP_PATHS = [
+  "/api/",
+  "/_next/",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+];
 
 // ── Inline rate limiter (no external deps, Edge-runtime safe) ─────────────
 interface Entry { count: number; resetAt: number }
@@ -33,13 +60,35 @@ function check(key: string, max: number, windowMs: number): { ok: boolean; reset
 }
 
 // ── Middleware ─────────────────────────────────────────────────────────────
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  // ── Locale routing ─────────────────────────────────────────────
+  // Skip static files, API routes, and Next.js internals
+  const shouldSkipLocale =
+    PUBLIC_FILE.test(pathname) ||
+    SKIP_PATHS.some(p => pathname.startsWith(p));
+
+  if (!shouldSkipLocale) {
+    // Check if path already has a locale prefix
+    const pathnameHasLocale = (locales as readonly string[]).some(
+      locale => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`
+    );
+
+    if (!pathnameHasLocale) {
+      const locale = getLocaleFromRequest(req);
+      const newUrl = req.nextUrl.clone();
+      newUrl.pathname = `/${locale}${pathname === "/" ? "" : pathname}`;
+      return NextResponse.redirect(newUrl);
+    }
+  }
+
+  // ── Rate limiting ──────────────────────────────────────────────
   const ip =
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     req.headers.get("x-real-ip") ??
     "unknown";
 
-  const { pathname } = req.nextUrl;
   const method = req.method;
 
   // Rate-limit login — 5 attempts per 15 minutes per IP
@@ -133,13 +182,7 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // NextAuth credentials callback
-    "/api/auth/callback/credentials",
-    // Chat streaming endpoint
-    "/api/chat",
-    // Demo chat endpoint
-    "/api/chat/demo",
-    // Payment initiation endpoint
-    "/api/payments/initiate",
+    // Run on all routes except Next.js internals and static files
+    "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };

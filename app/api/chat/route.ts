@@ -187,11 +187,35 @@ export async function POST(req: NextRequest) {
     },
   ];
 
-  // ── System prompt: project > tenant > global ──────────────────
-  const systemPrompt =
+  // ── W7: Maghreb/Darija prompt addendum ───────────────────────
+  const tenantRegion = (tenant as { region?: string })?.region ?? "WA";
+  const tenantCountryCode = (tenant as { countryCode?: string })?.countryCode ?? (tenant?.country ?? "SN");
+
+  const MAGHREB_SYSTEM_ADDENDUM = tenantRegion === "MAGHREB" ? `
+
+Le tenant est basé ${tenantCountryCode === "MA" ? "au Maroc" : tenantCountryCode === "TN" ? "en Tunisie" : "en Algérie"}. L'utilisateur peut écrire en :
+- Arabe standard moderne (الفصحى)
+- Darija marocaine ou arabe tunisien (en caractères arabes ou en transcription latine "arabizi")
+- Français
+- Code-switching entre ces langues
+
+Règles de réponse :
+1. Réponds dans la même langue que la dernière question de l'utilisateur.
+2. Si l'utilisateur écrit en Darija/dialecte, tu peux répondre en Darija si tu en es capable, sinon en arabe standard simple et compréhensible, en évitant le vocabulaire trop classique ou littéraire.
+3. Si l'utilisateur mélange français et arabe, tu peux faire de même.
+4. Les termes techniques, juridiques et financiers peuvent rester en français même dans une réponse en arabe — c'est l'usage courant au Maroc et en Tunisie.
+${tenantCountryCode === "MA" ? "5. Pour le Maroc : utilise les références juridiques marocaines (Code de commerce, Code du travail marocain, CNDP, Bank Al-Maghrib) plutôt qu'OHADA." : ""}
+${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références juridiques tunisiennes (Code des sociétés commerciales, INPDP, BCT)." : ""}` : "";
+
+  // ── System prompt: project > tenant > global + addendum ───────
+  const baseSystemPrompt =
     projectSystemPrompt ||
     (tenant?.systemPrompt?.trim() || null) ||
     SYSTEM_PROMPT;
+
+  const systemPrompt = MAGHREB_SYSTEM_ADDENDUM
+    ? `${baseSystemPrompt}\n\n${MAGHREB_SYSTEM_ADDENDUM}`.trim()
+    : baseSystemPrompt;
 
   // ── Stored content (no base64 images in DB) ───────────────────
   const storedUserContent =

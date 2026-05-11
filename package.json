@@ -1,5 +1,5 @@
 {
-  "name": "assistai",
+  "name": "liya",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -24,6 +24,7 @@
     "mammoth": "^1.12.0",
     "next": "16.2.4",
     "next-auth": "^4.24.14",
+    "next-intl": "^4.11.2",
     "nodemailer": "^7.0.13",
     "pdf-parse": "^1.1.1",
     "pg": "^8.20.0",

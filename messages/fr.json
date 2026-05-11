@@ -1,0 +1,85 @@
+{
+  "nav": {
+    "chat": "Chat",
+    "projects": "Projets",
+    "billing": "Facturation",
+    "admin": "Administration",
+    "logout": "Déconnexion",
+    "settings": "Paramètres"
+  },
+  "chat": {
+    "placeholder": "Posez votre question…",
+    "send": "Envoyer",
+    "newConversation": "Nouvelle conversation",
+    "modelHaiku": "⚡ Haiku — Rapide & économique",
+    "modelSonnet": "✦ Sonnet — Équilibré (recommandé)",
+    "modelOpus": "◆ Opus — Intelligence maximale",
+    "extendedThinking": "🧠 Réflexion",
+    "export": "📥 Exporter",
+    "filesInContext": "📂 En contexte",
+    "generating": "Génération en cours…",
+    "error": "Une erreur s'est produite. Veuillez réessayer.",
+    "quotaExceeded": "Quota mensuel atteint. Contactez l'administrateur.",
+    "arabicTokenNotice": "L'arabe consomme environ 1,5 à 2 fois plus de tokens que le français pour un contenu équivalent."
+  },
+  "billing": {
+    "title": "Facturation",
+    "status": "Statut du mois",
+    "upToDate": "✅ À jour",
+    "pending": "⚠️ En attente",
+    "amountDue": "Montant dû",
+    "paymentInstructions": "Contactez votre représentant LIYA",
+    "tokensUsed": "Tokens utilisés",
+    "tokensLimit": "Limite mensuelle",
+    "paymentMethods": "Modes de paiement",
+    "birrNotice": "Les tarifs en Birr éthiopien sont révisés trimestriellement en fonction du taux de référence de la NBE.",
+    "cash": {
+      "instructions": "Payez en espèces auprès de votre représentant LIYA. Mentionnez votre identifiant client ({tenantId}) lors du paiement. Crédit sous 24h."
+    },
+    "wave": {
+      "instructions": "Envoyez le montant sur le numéro Wave de LIYA. Mentionnez votre identifiant client ({tenantId}) en référence. Crédit sous 2h."
+    },
+    "orange_money": {
+      "instructions": "Envoyez le montant sur le numéro Orange Money de LIYA. Mentionnez votre identifiant client ({tenantId}) en référence. Crédit sous 2h."
+    },
+    "cashplus": {
+      "instructions": "Déposez le montant au compte CashPlus de LIYA : {{TODO: provided by user}}. Référence de transfert : {tenantId}. Crédit sous 24-48h après réception."
+    },
+    "wafacash": {
+      "instructions": "Effectuez un virement Wafacash vers le compte LIYA. Contactez votre représentant pour les coordonnées. Référence : {tenantId}."
+    },
+    "d17": {
+      "instructions": "Déposez le montant au compte D17 (Poste Tunisienne) de LIYA : {{TODO: provided by user}}. Référence : {tenantId}. Crédit sous 24-48h."
+    },
+    "lapostepay": {
+      "instructions": "Effectuez un paiement La Poste Pay vers le compte LIYA. Contactez votre représentant pour les coordonnées. Référence : {tenantId}."
+    },
+    "telebirr": {
+      "instructions": "Envoyez le montant sur le numéro Telebirr de LIYA : {{TODO: provided by user}}. Référence : {tenantId}. Crédit sous 24-48h."
+    },
+    "cbe_birr": {
+      "instructions": "Virement CBE Birr vers le compte LIYA : {{TODO: provided by user}}. Référence : {tenantId}. Crédit sous 24-48h."
+    },
+    "bank_transfer": {
+      "instructions": "Effectuez un virement bancaire vers le compte LIYA. Contactez votre représentant pour les coordonnées bancaires. Référence : {tenantId}. Crédit sous 2-5 jours ouvrés."
+    }
+  },
+  "locale": {
+    "fr": "Français",
+    "en": "English",
+    "ar": "العربية"
+  },
+  "common": {
+    "save": "Enregistrer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "edit": "Modifier",
+    "close": "Fermer",
+    "loading": "Chargement…",
+    "error": "Erreur",
+    "success": "Succès",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "poweredBy": "Propulsé par Claude · Anthropic"
+  }
+}

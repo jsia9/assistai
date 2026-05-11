@@ -1,0 +1,87 @@
+{
+  "_review_needed": true,
+  "_review_notes": "Arabic translations below use Modern Standard Arabic (فصحى). Flag for native speaker review before go-live. Key decisions: Token → رمز (not توكن), Project → مشروع, Billing → الفوترة.",
+  "nav": {
+    "chat": "المحادثة",
+    "projects": "المشاريع",
+    "billing": "الفوترة",
+    "admin": "الإدارة",
+    "logout": "تسجيل الخروج",
+    "settings": "الإعدادات"
+  },
+  "chat": {
+    "placeholder": "اطرح سؤالك…",
+    "send": "إرسال",
+    "newConversation": "محادثة جديدة",
+    "modelHaiku": "⚡ Haiku — سريع واقتصادي",
+    "modelSonnet": "✦ Sonnet — متوازن (موصى به)",
+    "modelOpus": "◆ Opus — أقصى درجات الذكاء",
+    "extendedThinking": "🧠 التفكير الموسع",
+    "export": "📥 تصدير",
+    "filesInContext": "📂 في السياق",
+    "generating": "جارٍ الإنشاء…",
+    "error": "حدث خطأ. يرجى المحاولة مجدداً.",
+    "quotaExceeded": "تم استنفاد الحصة الشهرية. تواصل مع المسؤول.",
+    "arabicTokenNotice": "يستهلك النص العربي ما بين 1.5 إلى 2 ضعف عدد الرموز (tokens) مقارنةً بالمحتوى المعادل بالفرنسية، نظراً لطريقة تقسيم النموذج للنصوص."
+  },
+  "billing": {
+    "title": "الفوترة",
+    "status": "حالة الشهر",
+    "upToDate": "✅ محدّث",
+    "pending": "⚠️ في الانتظار",
+    "amountDue": "المبلغ المستحق",
+    "paymentInstructions": "تواصل مع ممثل LIYA",
+    "tokensUsed": "الرموز المستخدمة",
+    "tokensLimit": "الحد الشهري",
+    "paymentMethods": "طرق الدفع",
+    "birrNotice": "تُراجَع أسعار البير الإثيوبي ربع سنوياً استناداً إلى سعر مرجعي من البنك الوطني الإثيوبي.",
+    "cash": {
+      "instructions": "ادفع نقداً لممثل LIYA. أذكر رقم حسابك ({tenantId}) عند الدفع. يُضاف الرصيد خلال 24 ساعة."
+    },
+    "wave": {
+      "instructions": "أرسل المبلغ إلى رقم Wave الخاص بـ LIYA. استخدم رقم حسابك ({tenantId}) مرجعاً. يُضاف الرصيد خلال ساعتين."
+    },
+    "orange_money": {
+      "instructions": "أرسل المبلغ إلى رقم Orange Money الخاص بـ LIYA. استخدم رقم حسابك ({tenantId}) مرجعاً. يُضاف الرصيد خلال ساعتين."
+    },
+    "cashplus": {
+      "instructions": "أودع المبلغ في حساب CashPlus الخاص بـ LIYA: {{TODO: provided by user}}. المرجع: {tenantId}. يُضاف الرصيد خلال 24-48 ساعة."
+    },
+    "wafacash": {
+      "instructions": "حوّل عبر Wafacash إلى حساب LIYA. تواصل مع ممثلك للحصول على التفاصيل. المرجع: {tenantId}."
+    },
+    "d17": {
+      "instructions": "أودع في حساب D17 (البريد التونسي) الخاص بـ LIYA: {{TODO: provided by user}}. المرجع: {tenantId}. يُضاف الرصيد خلال 24-48 ساعة."
+    },
+    "lapostepay": {
+      "instructions": "ادفع عبر La Poste Pay إلى حساب LIYA. تواصل مع ممثلك للتفاصيل. المرجع: {tenantId}."
+    },
+    "telebirr": {
+      "instructions": "أرسل إلى رقم Telebirr الخاص بـ LIYA: {{TODO: provided by user}}. المرجع: {tenantId}. يُضاف الرصيد خلال 24-48 ساعة."
+    },
+    "cbe_birr": {
+      "instructions": "تحويل CBE Birr إلى حساب LIYA: {{TODO: provided by user}}. المرجع: {tenantId}. يُضاف الرصيد خلال 24-48 ساعة."
+    },
+    "bank_transfer": {
+      "instructions": "حوّل مصرفياً إلى حساب LIYA. تواصل مع ممثلك للحصول على تفاصيل الحساب. المرجع: {tenantId}. يُضاف الرصيد خلال 2-5 أيام عمل."
+    }
+  },
+  "locale": {
+    "fr": "Français",
+    "en": "English",
+    "ar": "العربية"
+  },
+  "common": {
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "close": "إغلاق",
+    "loading": "جارٍ التحميل…",
+    "error": "خطأ",
+    "success": "تمّ بنجاح",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "poweredBy": "مدعوم بـ Claude · Anthropic"
+  }
+}

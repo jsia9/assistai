@@ -1,0 +1,85 @@
+{
+  "nav": {
+    "chat": "Chat",
+    "projects": "Projects",
+    "billing": "Billing",
+    "admin": "Administration",
+    "logout": "Sign out",
+    "settings": "Settings"
+  },
+  "chat": {
+    "placeholder": "Ask your question…",
+    "send": "Send",
+    "newConversation": "New conversation",
+    "modelHaiku": "⚡ Haiku — Fast & affordable",
+    "modelSonnet": "✦ Sonnet — Balanced (recommended)",
+    "modelOpus": "◆ Opus — Maximum intelligence",
+    "extendedThinking": "🧠 Extended thinking",
+    "export": "📥 Export",
+    "filesInContext": "📂 In context",
+    "generating": "Generating…",
+    "error": "An error occurred. Please try again.",
+    "quotaExceeded": "Monthly quota reached. Contact your administrator.",
+    "arabicTokenNotice": "Arabic uses approximately 1.5–2× more tokens than equivalent English content."
+  },
+  "billing": {
+    "title": "Billing",
+    "status": "Monthly status",
+    "upToDate": "✅ Up to date",
+    "pending": "⚠️ Pending",
+    "amountDue": "Amount due",
+    "paymentInstructions": "Contact your LIYA representative",
+    "tokensUsed": "Tokens used",
+    "tokensLimit": "Monthly limit",
+    "paymentMethods": "Payment methods",
+    "birrNotice": "Ethiopian Birr prices are reviewed quarterly based on the NBE benchmark rate.",
+    "cash": {
+      "instructions": "Pay cash to your LIYA representative. Include your client ID ({tenantId}) as reference. Credit within 24h."
+    },
+    "wave": {
+      "instructions": "Send the amount to LIYA's Wave number. Use your client ID ({tenantId}) as reference. Credit within 2h."
+    },
+    "orange_money": {
+      "instructions": "Send the amount to LIYA's Orange Money number. Use your client ID ({tenantId}) as reference. Credit within 2h."
+    },
+    "cashplus": {
+      "instructions": "Deposit to LIYA's CashPlus account: {{TODO: provided by user}}. Reference: {tenantId}. Credit within 24-48h after receipt."
+    },
+    "wafacash": {
+      "instructions": "Transfer via Wafacash to LIYA's account. Contact your representative for details. Reference: {tenantId}."
+    },
+    "d17": {
+      "instructions": "Deposit to LIYA's D17 (La Poste) account: {{TODO: provided by user}}. Reference: {tenantId}. Credit within 24-48h."
+    },
+    "lapostepay": {
+      "instructions": "Pay via La Poste Pay to LIYA's account. Contact your representative for details. Reference: {tenantId}."
+    },
+    "telebirr": {
+      "instructions": "Send to LIYA's Telebirr number: {{TODO: provided by user}}. Reference: {tenantId}. Credit within 24-48h."
+    },
+    "cbe_birr": {
+      "instructions": "CBE Birr transfer to LIYA's account: {{TODO: provided by user}}. Reference: {tenantId}. Credit within 24-48h."
+    },
+    "bank_transfer": {
+      "instructions": "Wire transfer to LIYA's bank account. Contact your representative for banking details. Reference: {tenantId}. Credit within 2-5 business days."
+    }
+  },
+  "locale": {
+    "fr": "Français",
+    "en": "English",
+    "ar": "العربية"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "loading": "Loading…",
+    "error": "Error",
+    "success": "Success",
+    "confirm": "Confirm",
+    "back": "Back",
+    "poweredBy": "Powered by Claude · Anthropic"
+  }
+}

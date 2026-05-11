@@ -22,7 +22,7 @@ export const authOptions: NextAuthOptions = {
         // Build a Request-like wrapper so audit() can capture IP/UA.
         // NextAuth gives req.headers as a plain object.
         const h = (req?.headers ?? {}) as Record<string, string>;
-        const fakeReq = new Request("http://kamali.local/audit", {
+        const fakeReq = new Request("http://liya.local/audit", {
           headers: {
             "x-forwarded-for": h["x-forwarded-for"] ?? "",
             "user-agent": h["user-agent"] ?? "",

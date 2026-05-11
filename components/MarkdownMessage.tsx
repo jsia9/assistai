@@ -111,7 +111,8 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
       {preview && (
         <PreviewModal code={code} language={language.toLowerCase()} onClose={() => setPreview(false)} />
       )}
-      <div className="my-3 rounded-lg overflow-hidden border border-gray-200">
+      {/* dir="ltr" keeps code blocks LTR even in Arabic (RTL) UI — W3 */}
+      <div className="my-3 rounded-lg overflow-hidden border border-gray-200" dir="ltr">
         <div className="flex items-center justify-between px-3 py-1.5 bg-gray-100 border-b border-gray-200">
           <span className="text-xs text-gray-500 font-mono">{language || "code"}</span>
           <div className="flex gap-1">

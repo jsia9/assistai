@@ -14,8 +14,14 @@ model Tenant {
   active            Boolean   @default(true)
   monthlyTokenLimit Int       @default(500000)
   systemPrompt      String?   @db.Text
-  country           String?   // "ML" | "SN" | "CI" | etc.
+  country           String?   // legacy field — use countryCode
   preferredProvider String?   // "cinetpay" | "paydunya" | "wave"
+  // ── Phase 1: Multi-region ──────────────────────────────────────
+  region            String    @default("WA")       // "WA" | "MAGHREB" | "HOA"
+  countryCode       String    @default("SN")       // ISO 3166-1 alpha-2
+  currency          String    @default("XOF")      // "XOF" | "MAD" | "TND" | "ETB"
+  defaultLocale     String    @default("fr")       // "fr" | "en" | "ar"
+  timezone          String    @default("Africa/Dakar")
   createdAt         DateTime  @default(now())
   users             User[]
   messages          Message[]
