@@ -15,6 +15,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
 import { COUNTRIES, getCountry } from "../lib/regions";
 import { cloneTemplatesForUser } from "./seed-templates";
+import { PLAN_MAX_DAYS } from "../lib/billing";
 
 // ─── Modifiez ces valeurs ────────────────────────────────────────
 const COMPANY      = process.env.COMPANY      ?? "Nouvelle Entreprise";
@@ -22,8 +23,8 @@ const EMAIL        = process.env.EMAIL        ?? "admin@entreprise.com";
 const NAME         = process.env.NAME         ?? "Prénom Nom";
 const PASSWORD     = process.env.PASSWORD     ?? "motdepasse123";
 const ROLE         = process.env.ROLE         ?? "admin"; // "user" | "admin"
-const PLAN         = process.env.PLAN         ?? "starter"; // "starter" | "pro" | "enterprise"
-const TOKEN_LIMIT  = parseInt(process.env.TOKEN_LIMIT  ?? "500000", 10);
+const PLAN         = process.env.PLAN         ?? "trial"; // "trial" | "decouverte" | "premium" | "business5" | "business20"
+const TOKEN_LIMIT  = parseInt(process.env.TOKEN_LIMIT  ?? "50000", 10);
 const COUNTRY_CODE = (process.env.COUNTRY_CODE ?? "SN").toUpperCase();
 // ─────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,13 @@ async function main() {
     process.exit(1);
   }
 
+  // Stamp plan lifecycle fields
+  const now = new Date();
+  const trialEndsAt =
+    PLAN === "trial"
+      ? new Date(now.getTime() + (PLAN_MAX_DAYS["trial"] ?? 3) * 24 * 60 * 60 * 1000)
+      : null;
+
   // Créer l'entreprise avec les champs régionaux
   const tenant = await prisma.tenant.create({
     data: {
@@ -54,6 +62,8 @@ async function main() {
       currency:          country.currency,
       defaultLocale:     country.defaultLocale,
       timezone:          country.timezone,
+      planStartedAt:     now,
+      trialEndsAt,
     } as Parameters<typeof prisma.tenant.create>[0]["data"],
   });
 

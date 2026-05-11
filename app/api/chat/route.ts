@@ -5,6 +5,11 @@ import { SYSTEM_PROMPT } from "@/lib/system-prompt";
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest } from "next/server";
 import { MODEL_COEFFICIENTS, DEFAULT_COEFFICIENT } from "@/lib/model-coefficients";
+import {
+  PLAN_ALLOWED_MODELS,
+  PLAN_NO_EXTENDED_THINKING,
+  PLAN_MAX_DAYS,
+} from "@/lib/billing";
 import { DOCUMENT_TOOLS, isDocumentTool } from "@/lib/skills/tools";
 import { generatePptx } from "@/lib/skills/generate-pptx";
 import { generateXlsx } from "@/lib/skills/generate-xlsx";
@@ -58,7 +63,9 @@ export async function POST(req: NextRequest) {
     ? (rawModel as AllowedModel)
     : DEFAULT_MODEL;
 
+  // Cap message length to prevent token abuse (100 KB ≈ 25 000 tokens)
   if (!message?.trim()) return new Response("Message requis", { status: 400 });
+  if (message.length > 100_000) return new Response("Message trop long (max 100 000 caractères)", { status: 400 });
 
   const userId = session.user.id;
   const tenantId = session.user.tenantId;
@@ -92,6 +99,74 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // ── Plan lifecycle enforcement ────────────────────────────────
+  const plan = tenant?.plan ?? "starter";
+  const now  = Date.now();
+
+  // 1. Trial expiry (72 h)
+  if (plan === "trial") {
+    const trialEndsAt = (tenant as { trialEndsAt?: Date | null })?.trialEndsAt;
+    if (trialEndsAt && now > trialEndsAt.getTime()) {
+      return new Response(
+        JSON.stringify({
+          error: "trial_expired",
+          message:
+            "Votre essai gratuit de 72 h est terminé. Passez à un forfait payant pour continuer.",
+          upgrade: true,
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+
+  // 2. Découverte plan — max 3 months
+  if (plan === "decouverte") {
+    const planStartedAt = (tenant as { planStartedAt?: Date | null })?.planStartedAt;
+    const maxDays = PLAN_MAX_DAYS["decouverte"] ?? 92;
+    if (planStartedAt && now > planStartedAt.getTime() + maxDays * 24 * 60 * 60 * 1000) {
+      return new Response(
+        JSON.stringify({
+          error: "plan_expired",
+          message:
+            "Votre période Découverte (3 mois) est terminée. Passez au forfait Premium pour continuer à utiliser Opus et la réflexion approfondie.",
+          upgrade: true,
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }
+
+  // 3. Model restriction by plan
+  const allowedModels = PLAN_ALLOWED_MODELS[plan];
+  if (allowedModels && !allowedModels.includes(model)) {
+    return new Response(
+      JSON.stringify({
+        error: "model_not_allowed",
+        message:
+          plan === "trial"
+            ? "L'essai gratuit est limité aux modèles Haiku et Sonnet. Passez à un forfait payant pour accéder à Opus."
+            : `Le modèle ${model} n'est pas disponible dans votre forfait actuel.`,
+        upgrade: true,
+      }),
+      { status: 403, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // 4. Extended Thinking restriction by plan
+  if (extendedThinking && PLAN_NO_EXTENDED_THINKING.has(plan)) {
+    return new Response(
+      JSON.stringify({
+        error: "feature_not_allowed",
+        message:
+          plan === "trial"
+            ? "La réflexion approfondie n'est pas disponible dans l'essai gratuit."
+            : "La réflexion approfondie n'est pas incluse dans le forfait Découverte. Passez au forfait Premium.",
+        upgrade: true,
+      }),
+      { status: 403, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   // ── Conversation setup ────────────────────────────────────────
   let convId = conversationId as string | null;
   let resolvedProjectId: string | null = bodyProjectId;
@@ -106,12 +181,16 @@ export async function POST(req: NextRequest) {
     });
     convId = conv.id;
   } else {
-    // Inherit projectId from existing conversation
+    // Verify conversation ownership — MUST return 404 on mismatch.
+    // Without this guard, any authenticated user can supply an arbitrary
+    // conversationId and read another user's message history, write into their
+    // conversation, or delete their messages via regenerate=true (IDOR).
     const existingConv = await prisma.conversation.findFirst({
       where: { id: convId, userId },
       select: { projectId: true },
     });
-    if (existingConv?.projectId) resolvedProjectId = existingConv.projectId;
+    if (!existingConv) return new Response("Not found", { status: 404 });
+    if (existingConv.projectId) resolvedProjectId = existingConv.projectId;
   }
 
   // ── Regenerate: delete last user+assistant pair ───────────────

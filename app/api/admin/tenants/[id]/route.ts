@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
+import { PLAN_MAX_DAYS } from "@/lib/billing";
 
 export async function PATCH(
   req: Request,
@@ -23,6 +24,21 @@ export async function PATCH(
   });
   if (!before) return new Response("Tenant not found", { status: 404 });
 
+  // When the plan changes, stamp planStartedAt and (for trial) trialEndsAt.
+  // This is the single authoritative place where plan lifecycle clocks start.
+  const planLifecycle: Record<string, Date | null> = {};
+  if (body.plan !== undefined && body.plan !== before.plan) {
+    const now = new Date();
+    planLifecycle.planStartedAt = now;
+    if (body.plan === "trial") {
+      const maxDays = PLAN_MAX_DAYS["trial"] ?? 3;
+      planLifecycle.trialEndsAt = new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000);
+    } else {
+      // Clear old trial expiry when upgrading off trial
+      planLifecycle.trialEndsAt = null;
+    }
+  }
+
   const updated = await prisma.tenant.update({
     where: { id },
     data: {
@@ -32,6 +48,7 @@ export async function PATCH(
       ...(body.plan !== undefined && { plan: body.plan }),
       ...(body.active !== undefined && { active: body.active }),
       ...(body.systemPrompt !== undefined && { systemPrompt: body.systemPrompt }),
+      ...planLifecycle,
     },
   });
 

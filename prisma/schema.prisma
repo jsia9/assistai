@@ -22,6 +22,12 @@ model Tenant {
   currency          String    @default("XOF")      // "XOF" | "MAD" | "TND" | "ETB"
   defaultLocale     String    @default("fr")       // "fr" | "en" | "ar"
   timezone          String    @default("Africa/Dakar")
+  // ── Plan lifecycle ─────────────────────────────────────────────
+  /// Set when tenant is first activated on a paid or trial plan.
+  /// Used to enforce Découverte max-3-month and trial 72h windows.
+  planStartedAt     DateTime?
+  /// Set when plan = "trial". Chat is blocked after this timestamp.
+  trialEndsAt       DateTime?
   createdAt         DateTime  @default(now())
   users             User[]
   messages          Message[]
