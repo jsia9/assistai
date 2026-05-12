@@ -104,8 +104,8 @@ export default function LoginForm() {
         {/* Lien retour */}
         <p className="mt-5 text-center text-sm text-aria-stone">
           Pas encore de compte ?{" "}
-          <Link href="/" className="text-aria-indigo font-medium hover:underline">
-            Demander l&apos;accès
+          <Link href="/register" className="text-aria-indigo font-medium hover:underline">
+            Créer un compte gratuit
           </Link>
         </p>
 

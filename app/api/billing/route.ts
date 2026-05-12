@@ -72,6 +72,8 @@ export async function GET() {
       active: tenant.active,
     },
     billing: {
+      plan: tenant.plan,
+      trialEndsAt: tenant.trialEndsAt?.toISOString() ?? null,
       period,
       planPriceFcfa,
       planPriceUsd,

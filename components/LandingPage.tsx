@@ -712,7 +712,7 @@ export default function LandingPage({ locale = "fr" }: { locale?: Locale }) {
 
               {/* CTA */}
               <Link
-                href="/login"
+                href="/register"
                 className="hidden sm:inline-block bg-aria-terracotta text-white text-[15px] font-semibold px-5 py-2.5 rounded-lg hover:bg-aria-terracotta-dark transition-all hover:-translate-y-px shadow-sm"
               >
                 {c.navCta}
@@ -743,7 +743,7 @@ export default function LandingPage({ locale = "fr" }: { locale?: Locale }) {
               </p>
               <div className="flex flex-wrap gap-4 mt-9">
                 <Link
-                  href="/login"
+                  href="/register"
                   className="inline-flex items-center gap-2 bg-aria-terracotta text-white font-semibold text-[17px] px-8 py-4 rounded-lg hover:bg-aria-terracotta-dark transition-all hover:-translate-y-px shadow-md"
                 >
                   {c.ctaTry}
@@ -838,7 +838,7 @@ export default function LandingPage({ locale = "fr" }: { locale?: Locale }) {
             <p className="text-[18px] text-aria-stone max-w-[660px] mb-14">{c.pricingSub}</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-5">
-              {c.pricingTiers.map(({ name, target, amount, amountSub, features, cta, ctaStyle, featured }) => (
+              {c.pricingTiers.map(({ name, target, amount, amountSub, features, cta, ctaStyle, featured }, tierIdx) => (
                 <div key={name} className={`relative bg-white rounded-2xl p-7 text-center flex flex-col transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md ${featured ? "border-2 border-aria-terracotta scale-[1.02] shadow-xl hover:-translate-y-1" : "border-2 border-transparent"}`}>
                   {featured && (
                     <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-aria-terracotta text-white text-xs font-semibold px-4 py-1 rounded-full tracking-[0.05em]">
@@ -863,7 +863,7 @@ export default function LandingPage({ locale = "fr" }: { locale?: Locale }) {
                     ))}
                   </ul>
                   <Link
-                    href="/login"
+                    href={tierIdx === 0 ? "/register" : "/login"}
                     className={`block w-full text-center py-3 rounded-lg text-[15px] font-semibold transition-colors ${ctaStyle === "primary" ? "bg-aria-terracotta text-white hover:bg-aria-terracotta-dark" : "border-[1.5px] border-aria-indigo text-aria-indigo hover:bg-aria-indigo hover:text-white"}`}
                   >
                     {cta}
@@ -875,9 +875,9 @@ export default function LandingPage({ locale = "fr" }: { locale?: Locale }) {
             {/* Note recharge */}
             <p className="text-center mt-8 text-[14px] text-aria-stone italic">
               {c.topUpNote}{" "}
-              <a href="#" className="text-aria-terracotta font-semibold hover:underline">
+              <Link href="/register" className="text-aria-terracotta font-semibold hover:underline">
                 {locale === "fr" ? "Demander un devis sur mesure →" : locale === "en" ? "Request a custom quote →" : "طلب عرض سعر مخصص →"}
-              </a>
+              </Link>
             </p>
 
             {/* Note Découverte */}
@@ -922,7 +922,7 @@ export default function LandingPage({ locale = "fr" }: { locale?: Locale }) {
             <h2 className="font-display text-[clamp(36px,5vw,56px)] font-bold tracking-[-0.02em] mb-6">{c.ctaFinalH2}</h2>
             <p className="text-[19px] opacity-85 mb-9 max-w-[520px] mx-auto">{c.ctaFinalSub}</p>
             <Link
-              href="/login"
+              href="/register"
               className="inline-flex items-center gap-3 bg-aria-terracotta text-white font-semibold text-[17px] px-10 py-4 rounded-lg hover:bg-aria-ochre hover:text-aria-anthracite transition-all hover:-translate-y-px shadow-md"
             >
               {c.ctaFinalBtn}

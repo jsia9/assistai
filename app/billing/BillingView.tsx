@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -13,6 +13,8 @@ interface BillingData {
     active: boolean;
   };
   billing: {
+    plan: string;
+    trialEndsAt: string | null;
     period: string;
     planPriceFcfa: number;
     planPriceUsd: number;
@@ -73,6 +75,7 @@ function BillingViewInner() {
   const [data, setData] = useState<BillingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [paymentLoading, setPaymentLoading] = useState<"subscription" | "topup" | null>(null);
+  const [upgradeLoading, setUpgradeLoading] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatusResult | null>(null);
   const [paymentStatusLoading, setPaymentStatusLoading] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
@@ -185,6 +188,60 @@ function BillingViewInner() {
     }
   };
 
+  const handleCashRequest = async (plan: string, amountFcfa: number) => {
+    if (!data) return;
+    setUpgradeLoading(plan);
+    try {
+      const res = await fetch("/api/payments/cash-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan, amountFcfa, period: data.billing.period }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Erreur inconnue" }));
+        showToast("error", err.error ?? "Erreur lors de l'envoi de la demande.");
+        return;
+      }
+      showToast(
+        "success",
+        "✅ Demande envoyée ! Vous serez contacté sous 24h pour finaliser votre abonnement."
+      );
+    } catch {
+      showToast("error", "Erreur réseau. Vérifiez votre connexion et réessayez.");
+    } finally {
+      setUpgradeLoading(null);
+    }
+  };
+
+  const handleUpgradePayment = async (plan: string, amountFcfa: number) => {
+    if (!data) return;
+    setUpgradeLoading(plan);
+    try {
+      const res = await fetch("/api/payments/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "subscription",
+          channel: "ALL",
+          amount: amountFcfa,
+          period: data.billing.period,
+          plan,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Erreur inconnue" }));
+        showToast("error", err.error ?? "Erreur lors de l'initialisation du paiement.");
+        return;
+      }
+      const { paymentUrl } = await res.json();
+      window.location.href = paymentUrl;
+    } catch {
+      showToast("error", "Erreur réseau. Vérifiez votre connexion et réessayez.");
+    } finally {
+      setUpgradeLoading(null);
+    }
+  };
+
   if (loading)
     return (
       <div className="min-h-screen flex items-center justify-center text-aria-stone">
@@ -200,6 +257,58 @@ function BillingViewInner() {
 
   const { tenant, billing, payments } = data;
   const { isPaidThisMonth, balanceFcfa, planPriceFcfa } = billing;
+
+  // Trial countdown
+  let trialBanner: React.ReactNode = null;
+  if (tenant.plan === "trial" && billing.trialEndsAt) {
+    const now = Date.now();
+    const endsAt = new Date(billing.trialEndsAt).getTime();
+    const msLeft = endsAt - now;
+    if (msLeft <= 0) {
+      trialBanner = (
+        <div className="rounded-2xl border-2 border-red-300 bg-red-50 px-6 py-4 text-red-700 font-semibold text-center">
+          🚫 Essai expiré — Choisissez un forfait pour continuer
+        </div>
+      );
+    } else {
+      const daysLeft = Math.floor(msLeft / (1000 * 60 * 60 * 24));
+      const hoursLeft = Math.floor((msLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      trialBanner = (
+        <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 px-6 py-4 text-amber-800 font-semibold text-center">
+          ⏳ Essai gratuit — {daysLeft} jour{daysLeft !== 1 ? "s" : ""}, {hoursLeft} heure{hoursLeft !== 1 ? "s" : ""} restantes
+        </div>
+      );
+    }
+  }
+
+  // Upgrade plan cards
+  const UPGRADE_PLANS: { key: string; label: string; price: number; desc: string; featured?: boolean }[] = [
+    {
+      key: "decouverte",
+      label: "Découverte",
+      price: 9_000,
+      desc: "200k tokens · Opus ✓ · Réflexion ✗",
+    },
+    {
+      key: "premium",
+      label: "Premium ⭐",
+      price: 20_000,
+      desc: "500k tokens · Opus ✓ · Réflexion ✓",
+      featured: true,
+    },
+    {
+      key: "business5",
+      label: "Business 5",
+      price: 90_000,
+      desc: "5 utilisateurs · Tous modèles",
+    },
+    {
+      key: "business20",
+      label: "Business 20",
+      price: 200_000,
+      desc: "20 utilisateurs · Tous modèles",
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-aria-sand">
@@ -243,6 +352,57 @@ function BillingViewInner() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+
+        {/* Trial countdown banner */}
+        {trialBanner}
+
+        {/* Plan upgrade section */}
+        {(tenant.plan === "trial" || tenant.plan === "decouverte") && (
+          <div className="bg-white rounded-2xl border border-[#E8E2D6] p-6">
+            <h2 className="text-sm font-semibold text-aria-anthracite uppercase tracking-wide mb-4">
+              Passer à un forfait payant
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {UPGRADE_PLANS.map(({ key, label, price, desc, featured }) => (
+                <div
+                  key={key}
+                  className={`rounded-xl border-2 p-4 flex flex-col gap-3 ${
+                    featured
+                      ? "border-aria-indigo bg-aria-indigo/5"
+                      : "border-[#E8E2D6] bg-aria-sand"
+                  }`}
+                >
+                  <div>
+                    <p className={`font-bold text-base ${featured ? "text-aria-indigo" : "text-aria-anthracite"}`}>
+                      {label}
+                    </p>
+                    <p className="text-xs text-aria-stone mt-0.5">{desc}</p>
+                    <p className="text-lg font-extrabold text-aria-anthracite mt-1">
+                      {fmtFcfa(price)}
+                      <span className="text-sm font-normal text-aria-stone"> / mois</span>
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => handleUpgradePayment(key, price)}
+                      disabled={upgradeLoading !== null}
+                      className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
+                    >
+                      {upgradeLoading === key ? "Chargement…" : "🟠 Payer par Orange Money"}
+                    </button>
+                    <button
+                      onClick={() => handleCashRequest(key, price)}
+                      disabled={upgradeLoading !== null}
+                      className="w-full bg-white border border-[#C8C2B5] hover:border-aria-indigo disabled:opacity-60 disabled:cursor-not-allowed text-aria-anthracite text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
+                    >
+                      {upgradeLoading === key ? "…" : "📩 Demander paiement cash"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Statut du mois */}
         <div
