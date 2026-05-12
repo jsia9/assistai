@@ -21,7 +21,7 @@ interface ProjectDetail {
 }
 
 const ACCEPTED_FILES =
-  ".pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.html,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql,.jpg,.jpeg,.png,.gif,.webp";
+  ".pdf,.doc,.docx,.xls,.xlsx,.pptx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.html,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql,.jpg,.jpeg,.png,.gif,.webp";
 
 function fmtBytes(b: number) {
   if (b < 1024) return `${b} B`;

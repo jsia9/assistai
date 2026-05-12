@@ -142,6 +142,43 @@ export async function POST(req: Request) {
     }
   }
 
+  // ── PPTX → text ────────────────────────────────────────────────
+  const isPptx =
+    mime ===
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+    name.toLowerCase().endsWith(".pptx");
+  if (isPptx) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const JSZip = require("jszip") as typeof import("jszip");
+      const zip = await JSZip.loadAsync(buffer);
+      // Slides live at ppt/slides/slide1.xml, slide2.xml, …
+      const slideKeys = Object.keys(zip.files)
+        .filter((f) => /^ppt\/slides\/slide\d+\.xml$/.test(f))
+        .sort((a, b) => {
+          const na = parseInt(a.match(/\d+/)?.[0] ?? "0");
+          const nb = parseInt(b.match(/\d+/)?.[0] ?? "0");
+          return na - nb;
+        });
+      const total = slideKeys.length;
+      const slideTexts: string[] = [];
+      for (const key of slideKeys) {
+        const xml = await zip.files[key].async("string");
+        // Extract DrawingML <a:t> text runs
+        const matches = [...xml.matchAll(/<a:t[^>]*>([^<]*)<\/a:t>/g)];
+        const text = matches.map((m) => m[1]).filter(Boolean).join(" ").trim();
+        if (text) slideTexts.push(text);
+      }
+      const content = slideTexts.length
+        ? slideTexts.map((t, i) => `=== Diapositive ${i + 1}/${total} ===\n${t}`).join("\n\n")
+        : "(présentation vide ou protégée)";
+      return Response.json({ type: "text", name, content });
+    } catch (e) {
+      console.error("pptx parse error:", e);
+      return new Response("Impossible de lire ce fichier PowerPoint (.pptx)", { status: 422 });
+    }
+  }
+
   // ── Plain text (txt, md, csv, json, etc.) ─────────────────────
   const textExtensions = [".txt", ".md", ".csv", ".json", ".xml", ".yaml", ".yml", ".html", ".htm", ".log"];
   const isText =
@@ -161,7 +198,7 @@ export async function POST(req: Request) {
   }
 
   return new Response(
-    "Type de fichier non supporté. Formats acceptés : PDF, Word, Excel, images, texte, code.",
+    "Type de fichier non supporté. Formats acceptés : PDF, Word (.docx), Excel (.xlsx), PowerPoint (.pptx), images, texte, code.",
     { status: 415 }
   );
 }

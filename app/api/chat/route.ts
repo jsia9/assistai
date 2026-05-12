@@ -325,13 +325,21 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
           ? 8192
           : 4096;
 
+        // Web search is a server-side tool — Anthropic executes it autonomously
+        // when Claude judges it necessary. Disabled when Extended Thinking is
+        // active (API restriction: tools and thinking cannot coexist).
+        const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
+          type: "web_search_20250305",
+          name: "web_search",
+        };
+
         const streamParams: Parameters<typeof anthropic.messages.stream>[0] = {
           model,
           max_tokens: maxTokens,
           system: systemPrompt,
           messages,
-          // Disable tools when extended thinking is active (API restriction)
-          ...(!thinkingEnabled && { tools: DOCUMENT_TOOLS }),
+          // Disable ALL tools when extended thinking is active (API restriction)
+          ...(!thinkingEnabled && { tools: [WEB_SEARCH_TOOL, ...DOCUMENT_TOOLS] }),
           ...(thinkingEnabled && {
             thinking: { type: "enabled", budget_tokens: 10000 },
           }),
@@ -359,7 +367,7 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
               )
             );
           }
-          // Regular text deltas
+          // Regular text deltas — also clear the web-search indicator
           if (
             event.type === "content_block_delta" &&
             event.delta.type === "text_delta"
@@ -367,9 +375,17 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
             fullContent += event.delta.text;
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ text: event.delta.text })}\n\n`
+                `data: ${JSON.stringify({ text: event.delta.text, searching: false })}\n\n`
               )
             );
+          }
+          // Server-side tool start — signal web search to client
+          if (event.type === "content_block_start" && event.content_block.type === "server_tool_use") {
+            if ((event.content_block as Anthropic.ServerToolUseBlock).name === "web_search") {
+              controller.enqueue(encoder.encode(
+                `data: ${JSON.stringify({ searching: true })}\n\n`
+              ));
+            }
           }
           // Tool use — capture name + id
           if (event.type === "content_block_start" && event.content_block.type === "tool_use") {

@@ -28,6 +28,7 @@ interface Message {
   thinking?: string; // Extended Thinking content
   document?: GeneratedDocument; // generated file attached to this message
   generating?: string; // tool name currently being generated
+  searching?: boolean; // true while web search is in progress
 }
 
 interface TokenUsage {
@@ -60,7 +61,7 @@ const MODEL_OPTIONS = (Object.entries(MODEL_METADATA) as [ModelId, typeof MODEL_
 const DEFAULT_MODEL: ModelId = "claude-sonnet-4-5";
 
 const ACCEPTED_FILES =
-  ".pdf,.doc,.docx,.xls,.xlsx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.html,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql,.jpg,.jpeg,.png,.gif,.webp";
+  ".pdf,.doc,.docx,.xls,.xlsx,.pptx,.txt,.md,.csv,.json,.xml,.yaml,.yml,.html,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.php,.rb,.sql,.jpg,.jpeg,.png,.gif,.webp";
 
 export default function ChatInterface({
   userName,
@@ -355,6 +356,13 @@ export default function ChatInterface({
               setMessages((prev) => {
                 const copy = [...prev];
                 copy[copy.length - 1] = { ...copy[copy.length - 1], content: copy[copy.length - 1].content + payload.text };
+                return copy;
+              });
+            }
+            if (payload.searching !== undefined) {
+              setMessages((prev) => {
+                const copy = [...prev];
+                copy[copy.length - 1] = { ...copy[copy.length - 1], searching: payload.searching };
                 return copy;
               });
             }
@@ -975,6 +983,14 @@ function AssistantBubble({ message, isLast, streaming, onRegenerate, currentMode
           <span>🧠</span>
           <span>En train de réfléchir…</span>
           <TypingIndicator />
+        </div>
+      )}
+
+      {/* Web search indicator */}
+      {message.searching && (
+        <div className="mb-2 flex items-center gap-2 text-[12px] text-sky-700 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
+          <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-sky-500 border-t-transparent rounded-full" />
+          <span>🔍 Recherche sur internet…</span>
         </div>
       )}
 
