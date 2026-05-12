@@ -240,6 +240,25 @@ export function MarkdownMessage({ content }: { content: string }) {
     em({ children }) {
       return <em className="italic text-gray-700">{children}</em>;
     },
+    // Render inline images from web search results
+    img({ src, alt }) {
+      if (!src) return null;
+      return (
+        <span className="block my-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={alt ?? ""}
+            loading="lazy"
+            className="rounded-xl max-w-full max-h-72 object-contain border border-gray-200 shadow-sm"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+          />
+          {alt && (
+            <span className="block text-xs text-gray-400 mt-1 italic">{alt}</span>
+          )}
+        </span>
+      );
+    },
   };
 
   return (

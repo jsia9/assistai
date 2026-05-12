@@ -28,7 +28,7 @@ interface Message {
   thinking?: string; // Extended Thinking content
   document?: GeneratedDocument; // generated file attached to this message
   generating?: string; // tool name currently being generated
-  searching?: boolean; // true while web search is in progress
+  searching?: "search" | "fetch" | false; // activity indicator for web tools
 }
 
 interface TokenUsage {
@@ -362,7 +362,10 @@ export default function ChatInterface({
             if (payload.searching !== undefined) {
               setMessages((prev) => {
                 const copy = [...prev];
-                copy[copy.length - 1] = { ...copy[copy.length - 1], searching: payload.searching };
+                copy[copy.length - 1] = {
+                  ...copy[copy.length - 1],
+                  searching: payload.searching as "search" | "fetch" | false,
+                };
                 return copy;
               });
             }
@@ -986,11 +989,11 @@ function AssistantBubble({ message, isLast, streaming, onRegenerate, currentMode
         </div>
       )}
 
-      {/* Web search indicator */}
+      {/* Web activity indicator */}
       {message.searching && (
         <div className="mb-2 flex items-center gap-2 text-[12px] text-sky-700 bg-sky-50 border border-sky-200 rounded-xl px-3 py-2">
           <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-sky-500 border-t-transparent rounded-full" />
-          <span>🔍 Recherche sur internet…</span>
+          <span>{message.searching === "fetch" ? "🌐 Récupération de la page…" : "🔍 Recherche sur internet…"}</span>
         </div>
       )}
 

@@ -319,18 +319,24 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
           extendedThinking && model !== "claude-haiku-4-5";
 
         // Extended Thinking needs at least 16k max_tokens; give it 16k thinking + 4k answer.
+        // Opus gets 16k to handle long web search results without truncation.
         const maxTokens = thinkingEnabled
           ? 20000
           : model === "claude-opus-4-5"
-          ? 8192
-          : 4096;
+          ? 16384
+          : 8192;
 
-        // Web search is a server-side tool — Anthropic executes it autonomously
-        // when Claude judges it necessary. Disabled when Extended Thinking is
-        // active (API restriction: tools and thinking cannot coexist).
+        // Web search + web fetch are server-side tools — Anthropic executes them
+        // autonomously when Claude judges it necessary.
+        // Disabled when Extended Thinking is active (API restriction).
         const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
           type: "web_search_20250305",
           name: "web_search",
+        };
+        // web_fetch lets Claude retrieve a full page to extract image URLs etc.
+        const WEB_FETCH_TOOL: Anthropic.WebFetchTool20250910 = {
+          type: "web_fetch_20250910",
+          name: "web_fetch",
         };
 
         const streamParams: Parameters<typeof anthropic.messages.stream>[0] = {
@@ -339,7 +345,7 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
           system: systemPrompt,
           messages,
           // Disable ALL tools when extended thinking is active (API restriction)
-          ...(!thinkingEnabled && { tools: [WEB_SEARCH_TOOL, ...DOCUMENT_TOOLS] }),
+          ...(!thinkingEnabled && { tools: [WEB_SEARCH_TOOL, WEB_FETCH_TOOL, ...DOCUMENT_TOOLS] }),
           ...(thinkingEnabled && {
             thinking: { type: "enabled", budget_tokens: 10000 },
           }),
@@ -379,11 +385,16 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
               )
             );
           }
-          // Server-side tool start — signal web search to client
+          // Server-side tool start — signal activity to client
           if (event.type === "content_block_start" && event.content_block.type === "server_tool_use") {
-            if ((event.content_block as Anthropic.ServerToolUseBlock).name === "web_search") {
+            const toolName = (event.content_block as Anthropic.ServerToolUseBlock).name;
+            if (toolName === "web_search") {
               controller.enqueue(encoder.encode(
-                `data: ${JSON.stringify({ searching: true })}\n\n`
+                `data: ${JSON.stringify({ searching: "search" })}\n\n`
+              ));
+            } else if (toolName === "web_fetch") {
+              controller.enqueue(encoder.encode(
+                `data: ${JSON.stringify({ searching: "fetch" })}\n\n`
               ));
             }
           }
@@ -522,8 +533,22 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
         controller.close();
       } catch (err) {
         console.error("Chat API error:", err);
+        // Surface Anthropic API errors clearly (invalid model, quota, etc.)
+        let userMsg = "Une erreur s'est produite. Veuillez réessayer.";
+        if (err && typeof err === "object") {
+          const apiErr = err as { status?: number; message?: string; error?: { message?: string } };
+          if (apiErr.status === 404 || (apiErr.message ?? "").includes("model")) {
+            userMsg = `Modèle "${model}" non disponible. Veuillez sélectionner Haiku ou Sonnet.`;
+          } else if (apiErr.status === 429) {
+            userMsg = "Limite de débit Anthropic atteinte. Réessayez dans quelques secondes.";
+          } else if (apiErr.status === 401) {
+            userMsg = "Clé API invalide. Contactez l'administrateur.";
+          } else if (apiErr.message) {
+            userMsg = `Erreur : ${apiErr.message}`;
+          }
+        }
         controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ error: "Une erreur s'est produite. Veuillez réessayer." })}\n\n`)
+          encoder.encode(`data: ${JSON.stringify({ error: userMsg })}\n\n`)
         );
         controller.close();
       }
