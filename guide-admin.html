@@ -3,22 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Guide Administrateur — Kamali</title>
+  <title>Guide Administrateur — LIYA</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.7; }
 
     /* ── Layout ── */
-    .container { max-width: 820px; margin: 0 auto; padding: 40px 24px 80px; }
+    .container { max-width: 860px; margin: 0 auto; padding: 40px 24px 80px; }
 
     /* ── Header ── */
-    .header { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border-radius: 16px; padding: 36px 40px; margin-bottom: 40px; }
+    .header { background: linear-gradient(135deg, #1A2A4F 0%, #2d4a8a 100%); color: white; border-radius: 16px; padding: 36px 40px; margin-bottom: 40px; }
     .header h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 6px; }
     .header p  { opacity: .85; font-size: 1rem; }
-    .badge { display: inline-block; background: rgba(255,255,255,.2); border-radius: 20px; padding: 3px 12px; font-size: .75rem; font-weight: 600; margin-top: 12px; }
+    .badge { display: inline-block; background: rgba(255,255,255,.2); border-radius: 20px; padding: 3px 12px; font-size: .75rem; font-weight: 600; margin-top: 12px; margin-right: 6px; }
+    .badge-green { background: rgba(74,222,128,.25); }
+
+    /* ── TOC ── */
+    .toc { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 18px 24px; margin-bottom: 28px; }
+    .toc h3 { font-size: .85rem; font-weight: 700; color: #1e40af; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+    .toc ol { padding-left: 18px; font-size: .9rem; color: #1e40af; }
+    .toc li { margin-bottom: 4px; }
+    .toc a { color: #1e40af; text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
 
     /* ── Section ── */
-    .section { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; }
+    .section { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; scroll-margin-top: 20px; }
     .section h2 { font-size: 1.15rem; font-weight: 700; color: #1e293b; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
     .section h3 { font-size: .95rem; font-weight: 600; color: #374151; margin: 20px 0 8px; }
     .section p  { color: #475569; font-size: .95rem; margin-bottom: 10px; }
@@ -26,7 +35,6 @@
     .section li { margin-bottom: 6px; }
 
     /* ── Steps ── */
-    .step-badge { background: #4f46e5; color: white; border-radius: 50%; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; flex-shrink: 0; }
     .step-list { counter-reset: step; list-style: none; padding: 0; }
     .step-list li { counter-increment: step; display: flex; gap: 14px; margin-bottom: 14px; align-items: flex-start; }
     .step-list li::before { content: counter(step); background: #eef2ff; color: #4f46e5; border-radius: 50%; min-width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: .8rem; font-weight: 700; margin-top: 2px; flex-shrink: 0; }
@@ -39,6 +47,7 @@
     pre .val { color: #86efac; }
     pre .flag { color: #fbbf24; }
     pre .out { color: #a3e635; }
+    pre .err { color: #f87171; }
     .copy-btn { position: absolute; top: 10px; right: 10px; background: #1e3a5f; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; padding: 4px 10px; font-size: .72rem; cursor: pointer; transition: all .15s; }
     .copy-btn:hover { background: #4f46e5; color: white; border-color: #4f46e5; }
     .copy-btn.copied { background: #166534; color: #bbf7d0; border-color: #166534; }
@@ -48,6 +57,7 @@
     .callout-info  { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
     .callout-warn  { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
     .callout-tip   { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .callout-danger{ background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
     .callout-icon  { font-size: 1rem; margin-top: 1px; flex-shrink: 0; }
 
     /* ── Table ── */
@@ -60,12 +70,26 @@
     /* ── Tabs ── */
     .tabs { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 20px; }
     .tab { padding: 10px 20px; font-size: .9rem; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .15s; }
-    .tab.active { color: #4f46e5; border-color: #4f46e5; }
+    .tab.active { color: #1A2A4F; border-color: #1A2A4F; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
     /* ── Path ── */
     .path-tag { background: #f1f5f9; border: 1px solid #e2e8f0; color: #475569; border-radius: 6px; padding: 4px 10px; font-family: monospace; font-size: .8rem; display: inline-block; margin-bottom: 12px; }
+
+    /* ── Flow diagram ── */
+    .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
+    .flow-step { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; font-size: .85rem; color: #374151; font-weight: 500; }
+    .flow-step.active { background: #eef2ff; border-color: #a5b4fc; color: #3730a3; }
+    .flow-step.paid   { background: #f0fdf4; border-color: #86efac; color: #166534; }
+    .flow-arrow { color: #94a3b8; font-size: 1.1rem; }
+
+    /* ── Plan pill ── */
+    .plan { display: inline-block; border-radius: 20px; padding: 2px 10px; font-size: .78rem; font-weight: 600; }
+    .plan-trial { background: #fef3c7; color: #92400e; }
+    .plan-decouverte { background: #e0f2fe; color: #0369a1; }
+    .plan-premium { background: #eef2ff; color: #3730a3; }
+    .plan-business { background: #f0fdf4; color: #166534; }
 
     /* ── Footer ── */
     .footer { text-align: center; color: #94a3b8; font-size: .8rem; margin-top: 40px; }
@@ -82,29 +106,70 @@
 
   <!-- ═══ HEADER ═══════════════════════════════════════════════ -->
   <div class="header">
-    <h1>📋 Guide Administrateur — Kamali</h1>
-    <p>Procédure complète pour ajouter un utilisateur après réception d'une demande d'accès.</p>
+    <h1>📋 Guide Administrateur — LIYA</h1>
+    <p>Référence complète pour gérer les comptes, abonnements et paiements de la plateforme.</p>
     <span class="badge">🔐 Usage interne — Ne pas partager</span>
+    <span class="badge badge-green">✅ Mis à jour — Mai 2026</span>
   </div>
 
-  <!-- ═══ WORKFLOW GÉNÉRAL ══════════════════════════════════════ -->
-  <div class="section">
-    <h2><span class="step-badge">→</span> Flux de travail global</h2>
-    <ol class="step-list">
-      <li>Vous recevez un email de demande d'accès à <strong>jamal9@gmail.com</strong> avec le nom, l'entreprise et l'email du demandeur.</li>
-      <li>Ouvrez un terminal et naviguez vers le dossier du projet.</li>
-      <li>Listez les entreprises existantes pour trouver le bon <code>TENANT_ID</code>.</li>
-      <li><strong>Cas A</strong> — L'entreprise existe → ajoutez directement l'utilisateur.<br>
-          <strong>Cas B</strong> — Nouvelle entreprise → créez l'entreprise et le premier utilisateur.</li>
-      <li>Communiquez l'email et le mot de passe temporaire à l'utilisateur par WhatsApp ou email sécurisé.</li>
-      <li>Informez l'utilisateur de changer son mot de passe depuis le tableau de bord admin (<strong>Administration → Mot de passe</strong>).</li>
+  <!-- ═══ TABLE DES MATIÈRES ═══════════════════════════════════ -->
+  <div class="toc">
+    <h3>📑 Table des matières</h3>
+    <ol>
+      <li><a href="#flux">Flux de travail global</a></li>
+      <li><a href="#prereqs">Prérequis — terminal</a></li>
+      <li><a href="#self-reg">Inscription autonome des utilisateurs (nouveau)</a></li>
+      <li><a href="#tenants">Lister les entreprises</a></li>
+      <li><a href="#add-user">Ajouter / créer un utilisateur ou une entreprise</a></li>
+      <li><a href="#plans">Plans et tarifs</a></li>
+      <li><a href="#payments">Gérer les paiements (Orange Money + cash)</a></li>
+      <li><a href="#trial">Gérer les essais gratuits</a></li>
+      <li><a href="#password">Réinitialiser un mot de passe</a></li>
+      <li><a href="#suspend">Suspendre / réactiver un compte</a></li>
+      <li><a href="#superadmin">Compte superadmin — sécurité</a></li>
+      <li><a href="#errors">Erreurs fréquentes</a></li>
+      <li><a href="#cheatsheet">Aide-mémoire rapide</a></li>
     </ol>
   </div>
 
+  <!-- ═══ FLUX GLOBAL ══════════════════════════════════════════ -->
+  <div class="section" id="flux">
+    <h2>→ Flux de travail global</h2>
+
+    <h3>Nouveau flux (inscription autonome)</h3>
+    <div class="flow">
+      <div class="flow-step active">1. Utilisateur s'inscrit<br><small>/register</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">2. Essai 72h<br><small>plan trial</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">3. Choisit un plan<br><small>/billing</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step paid">4. Paye<br><small>OM ou cash</small></div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step paid">5. Accès activé<br><small>admin confirme</small></div>
+    </div>
+
+    <h3>Flux manuel (demande d'accès par email)</h3>
+    <ol class="step-list">
+      <li>Vous recevez un email à <strong>jamal9@gmail.com</strong> avec nom, entreprise, email du demandeur.</li>
+      <li>Ouvrez un terminal dans le dossier du projet.</li>
+      <li>Listez les entreprises pour trouver le bon <code>TENANT_ID</code>.</li>
+      <li><strong>Cas A</strong> — L'entreprise existe → ajoutez l'utilisateur.<br>
+          <strong>Cas B</strong> — Nouvelle entreprise → créez l'entreprise et le premier utilisateur.</li>
+      <li>Communiquez l'email et le mot de passe temporaire par WhatsApp ou email sécurisé.</li>
+      <li>Informez l'utilisateur de changer son mot de passe : <strong>Administration → Mot de passe</strong>.</li>
+    </ol>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">💡</span>
+      <span>Depuis mai 2026, les utilisateurs peuvent <strong>créer eux-mêmes leur compte</strong> sur <a href="https://liya.digital/register">liya.digital/register</a>. Un essai gratuit de 72h démarre automatiquement. Votre rôle est ensuite de <strong>confirmer les paiements cash</strong> et d'activer les abonnements payants.</span>
+    </div>
+  </div>
+
   <!-- ═══ PRÉREQUIS ═════════════════════════════════════════════ -->
-  <div class="section">
-    <h2>⚙️ Prérequis — Ouvrir le terminal au bon endroit</h2>
-    <p>Toutes les commandes doivent être exécutées depuis le dossier du projet. Copiez-collez exactement :</p>
+  <div class="section" id="prereqs">
+    <h2>⚙️ Prérequis — Ouvrir le terminal</h2>
+    <p>Toutes les commandes doivent être exécutées depuis le dossier du projet :</p>
     <div class="code-wrap">
       <button class="copy-btn" onclick="copyCode(this)">Copier</button>
       <pre><span class="comment"># Naviguer vers le projet</span>
@@ -113,16 +178,40 @@
 <span class="comment"># S'assurer que Node 20 est utilisé</span>
 <span class="cmd">export</span> PATH=<span class="val">"/usr/local/opt/node@20/bin:$PATH"</span></pre>
     </div>
-    <div class="callout callout-info">
-      <span class="callout-icon">💡</span>
-      <span>Conseil : ajoutez ces deux lignes à votre fichier <code>~/.zshrc</code> ou <code>~/.bashrc</code> pour ne pas avoir à les retaper à chaque session.</span>
+    <div class="callout callout-tip">
+      <span class="callout-icon">✅</span>
+      <span>Ajoutez ces deux lignes à <code>~/.zshrc</code> pour ne pas avoir à les retaper.</span>
     </div>
   </div>
 
-  <!-- ═══ ÉTAPE 1 : LISTER LES ENTREPRISES ═════════════════════ -->
-  <div class="section">
-    <h2>🔎 Étape 1 — Voir toutes les entreprises et leurs IDs</h2>
-    <p>Lancez cette commande pour obtenir la liste complète avec les identifiants :</p>
+  <!-- ═══ INSCRIPTION AUTONOME ══════════════════════════════════ -->
+  <div class="section" id="self-reg">
+    <h2>🆕 Inscription autonome des utilisateurs</h2>
+    <p>Les utilisateurs peuvent s'inscrire directement sur <strong>liya.digital/register</strong> sans intervention de votre part :</p>
+    <ul>
+      <li>Formulaire : nom, entreprise (optionnel), email, mot de passe</li>
+      <li>Compte créé → connexion automatique → redirection vers le chat</li>
+      <li>Plan <span class="plan plan-trial">trial</span> activé automatiquement : <strong>72 heures, 50 000 tokens, Haiku &amp; Sonnet uniquement</strong></li>
+      <li>Après 72h, l'utilisateur voit une invitation à choisir un forfait payant depuis <strong>/billing</strong></li>
+    </ul>
+
+    <h3>Votre rôle après inscription</h3>
+    <ol class="step-list">
+      <li>L'utilisateur choisit son plan depuis <strong>liya.digital/billing</strong>.</li>
+      <li>Il clique <strong>📩 Demander paiement cash</strong> → vous recevez un email automatique avec ses coordonnées, le plan choisi et le montant.</li>
+      <li>Vous encaissez le paiement, puis allez dans l'admin : <strong>Administration → Entreprises → ⚙ Configurer</strong> → changez le plan et le quota.</li>
+      <li>L'abonnement s'active immédiatement.</li>
+    </ol>
+
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <span>Si l'utilisateur paie par <strong>Orange Money via l'interface</strong> (CinetPay), le plan est mis à jour automatiquement via le webhook. Aucune action de votre part n'est nécessaire dans ce cas.</span>
+    </div>
+  </div>
+
+  <!-- ═══ LISTER LES ENTREPRISES ════════════════════════════════ -->
+  <div class="section" id="tenants">
+    <h2>🔎 Lister toutes les entreprises</h2>
     <div class="code-wrap">
       <button class="copy-btn" onclick="copyCode(this)">Copier</button>
       <pre><span class="cmd">npx tsx prisma/list-tenants.ts</span></pre>
@@ -135,28 +224,29 @@
 
 📁  SIAA Agile Solutions
     ID      : cm8xkpq2k0000abc123456789
-    Plan    : starter   |   Actif : oui
+    Plan    : premium   |   Actif : oui
     Quota   : 500 000 tokens/mois
+    Essai   : expiré le 2026-05-10
     Utilisateurs (2) :
       ✅  jamal@siaagilesolutions.com  [superadmin]
       ✅  ousmanebsy@gmail.com  [user]
 
-📁  Cabinet Traoré & Associés
+📁  Jean Koné — Essai
     ID      : cm9yzab3c0001def987654321
-    Plan    : pro   |   Actif : oui
-    Quota   : 1 000 000 tokens/mois
+    Plan    : trial   |   Actif : oui
+    Essai   : expire le 2026-05-14 à 15h30
     Utilisateurs (1) :
-      ✅  traore@cabinet-mali.com  [admin]</span></pre>
+      ✅  jean.kone@gmail.com  [admin]</span></pre>
     </div>
     <div class="callout callout-warn">
       <span class="callout-icon">⚠️</span>
-      <span>Notez bien l'<strong>ID</strong> (ex : <code>cm8xkpq2k0000abc123456789</code>) — vous en aurez besoin à l'étape 2A.</span>
+      <span>Notez bien l'<strong>ID</strong> (ex : <code>cm8xkpq2k0000abc123456789</code>) — vous en aurez besoin pour les opérations suivantes.</span>
     </div>
   </div>
 
-  <!-- ═══ ÉTAPES 2A / 2B avec TABS ═════════════════════════════ -->
-  <div class="section">
-    <h2>➕ Étape 2 — Ajouter l'utilisateur</h2>
+  <!-- ═══ AJOUTER UTILISATEUR / ENTREPRISE ═════════════════════ -->
+  <div class="section" id="add-user">
+    <h2>➕ Ajouter un utilisateur ou créer une entreprise</h2>
 
     <div class="tabs">
       <div class="tab active" onclick="switchTab(this, 'tab-existing')">Cas A — Entreprise existante</div>
@@ -165,10 +255,9 @@
 
     <!-- TAB A -->
     <div id="tab-existing" class="tab-content active">
-      <p>L'entreprise est déjà dans la liste. Il suffit d'ajouter l'utilisateur et de renseigner son <code>TENANT_ID</code>.</p>
+      <p>L'entreprise est déjà dans la liste. Il suffit d'ajouter l'utilisateur avec son <code>TENANT_ID</code>.</p>
 
       <h3>Option 1 — Variables en ligne de commande (recommandé)</h3>
-      <p>Remplacez les valeurs <code style="color:#be185d">en vert</code> par les informations du demandeur :</p>
       <div class="code-wrap">
         <button class="copy-btn" onclick="copyCode(this)">Copier</button>
         <pre><span class="flag">EMAIL</span>=<span class="val">"ousmane@entreprise.com"</span> \
@@ -180,194 +269,374 @@
       </div>
 
       <h3>Option 2 — Éditer le fichier directement</h3>
-      <p>Ouvrez le fichier <span class="path-tag">prisma/add-user.ts</span> dans un éditeur, modifiez les constantes en haut du fichier, puis lancez :</p>
+      <p>Ouvrez <span class="path-tag">prisma/add-user.ts</span>, modifiez les constantes en haut, puis :</p>
       <div class="code-wrap">
         <button class="copy-btn" onclick="copyCode(this)">Copier</button>
         <pre><span class="cmd">npx tsx prisma/add-user.ts</span></pre>
-      </div>
-
-      <h3>Résultat attendu</h3>
-      <div class="code-wrap">
-        <pre><span class="out">✅  Utilisateur créé avec succès !
-
-    Nom          : Ousmane Diallo
-    Email        : ousmane@entreprise.com
-    Mot de passe : Bamako2026!
-    Rôle         : user
-    Entreprise   : Cabinet Traoré &amp; Associés  (cm9yzab3c0001def987654321)
-    ID user      : cm9zzcd4d0002ghi135792468
-
-    ⚠️  Communiquez l'email et le mot de passe à l'utilisateur.
-       Conseillez-lui de changer son mot de passe dès la première connexion.</span></pre>
       </div>
     </div>
 
     <!-- TAB B -->
     <div id="tab-new" class="tab-content">
-      <p>L'entreprise n'existe pas encore. Cette commande crée l'entreprise <strong>et</strong> son premier utilisateur (généralement un admin) en une seule opération.</p>
+      <p>L'entreprise n'existe pas encore. Cette commande crée l'entreprise <strong>et</strong> son premier utilisateur en une seule opération.</p>
+      <p>Par défaut, le plan est <span class="plan plan-trial">trial</span> (72h). Changez <code>PLAN</code> pour un plan payant si vous créez un compte directement en production.</p>
 
-      <h3>Option 1 — Variables en ligne de commande (recommandé)</h3>
       <div class="code-wrap">
         <button class="copy-btn" onclick="copyCode(this)">Copier</button>
-        <pre><span class="flag">COMPANY</span>=<span class="val">"Société Keita &amp; Frères"</span> \
-<span class="flag">EMAIL</span>=<span class="val">"directeur@keita-mali.com"</span> \
-<span class="flag">NAME</span>=<span class="val">"Moussa Keita"</span> \
+        <pre><span class="flag">COMPANY</span>=<span class="val">"Cabinet Berrada"</span> \
+<span class="flag">EMAIL</span>=<span class="val">"directeur@cabinet.com"</span> \
+<span class="flag">NAME</span>=<span class="val">"Driss Berrada"</span> \
 <span class="flag">PASSWORD</span>=<span class="val">"Bamako2026!"</span> \
 <span class="flag">ROLE</span>=<span class="val">"admin"</span> \
-<span class="flag">PLAN</span>=<span class="val">"starter"</span> \
+<span class="flag">PLAN</span>=<span class="val">"premium"</span> \
 <span class="flag">TOKEN_LIMIT</span>=<span class="val">"500000"</span> \
+<span class="flag">COUNTRY_CODE</span>=<span class="val">"SN"</span> \
 <span class="cmd">npx tsx prisma/create-company.ts</span></pre>
-      </div>
-
-      <h3>Option 2 — Éditer le fichier directement</h3>
-      <p>Ouvrez <span class="path-tag">prisma/create-company.ts</span>, modifiez les constantes, puis :</p>
-      <div class="code-wrap">
-        <button class="copy-btn" onclick="copyCode(this)">Copier</button>
-        <pre><span class="cmd">npx tsx prisma/create-company.ts</span></pre>
-      </div>
-
-      <h3>Résultat attendu</h3>
-      <div class="code-wrap">
-        <pre><span class="out">✅  Entreprise et utilisateur créés !
-
-──── ENTREPRISE ────────────────────────────────
-    Nom          : Société Keita &amp; Frères
-    ID           : cm9aabc5e0003jkl246813579
-    Plan         : starter
-    Quota/mois   : 500 000 tokens
-
-──── UTILISATEUR ───────────────────────────────
-    Nom          : Moussa Keita
-    Email        : directeur@keita-mali.com
-    Mot de passe : Bamako2026!
-    Rôle         : admin
-    ID user      : cm9abcd6f0004mno369258147
-
-    ⚠️  Communiquez l'email et le mot de passe à l'utilisateur.
-       Conseillez-lui de changer son mot de passe dès la première connexion.</span></pre>
       </div>
 
       <div class="callout callout-tip">
         <span class="callout-icon">✅</span>
-        <span>Pour ajouter d'autres utilisateurs à cette entreprise, utilisez ensuite le <strong>Cas A</strong> avec l'ID de l'entreprise qui vient d'être créée.</span>
+        <span>Pour ajouter d'autres utilisateurs à cette entreprise, utilisez ensuite le <strong>Cas A</strong> avec l'ID qui vient d'être créé.</span>
       </div>
     </div>
   </div>
 
-  <!-- ═══ VALEURS DE RÉFÉRENCE ══════════════════════════════════ -->
-  <div class="section">
-    <h2>📊 Valeurs de référence</h2>
+  <!-- ═══ PLANS ET TARIFS ═══════════════════════════════════════ -->
+  <div class="section" id="plans">
+    <h2>📊 Plans et tarifs (2026)</h2>
 
-    <h3>Rôles disponibles (<code>ROLE</code>)</h3>
     <table>
-      <tr><th>Valeur</th><th>Description</th><th>Quand l'utiliser</th></tr>
-      <tr><td><code>user</code></td><td>Utilisateur standard</td><td>La plupart des collaborateurs d'une entreprise</td></tr>
-      <tr><td><code>admin</code></td><td>Admin d'entreprise</td><td>Responsable IT ou manager — voit les stats de sa société</td></tr>
-      <tr><td><code>superadmin</code></td><td>Super administrateur</td><td>Réservé à vous — accès total à toutes les entreprises</td></tr>
+      <tr><th>Plan (<code>PLAN</code>)</th><th>Prix</th><th>Tokens/mois</th><th>Modèles</th><th>Durée max</th></tr>
+      <tr>
+        <td><span class="plan plan-trial">trial</span> <code>trial</code></td>
+        <td>Gratuit</td>
+        <td>50 000</td>
+        <td>Haiku, Sonnet</td>
+        <td><strong>72 heures</strong></td>
+      </tr>
+      <tr>
+        <td><span class="plan plan-decouverte">Découverte</span> <code>decouverte</code></td>
+        <td>9 000 FCFA/mois</td>
+        <td>200 000</td>
+        <td>Haiku, Sonnet, Opus<br><small>Réflexion approfondie : ✗</small></td>
+        <td><strong>3 mois max</strong> puis → Premium</td>
+      </tr>
+      <tr>
+        <td><span class="plan plan-premium">Premium ⭐</span> <code>premium</code></td>
+        <td>20 000 FCFA/mois</td>
+        <td>500 000</td>
+        <td>Haiku, Sonnet, Opus<br>+ Réflexion approfondie ✓</td>
+        <td>Illimité</td>
+      </tr>
+      <tr>
+        <td><span class="plan plan-business">Business 5</span> <code>business5</code></td>
+        <td>90 000 FCFA/mois</td>
+        <td>500 000 (5 users)</td>
+        <td>Tous</td>
+        <td>Illimité</td>
+      </tr>
+      <tr>
+        <td><span class="plan plan-business">Business 20</span> <code>business20</code></td>
+        <td>200 000 FCFA/mois</td>
+        <td>500 000 (20 users)</td>
+        <td>Tous</td>
+        <td>Illimité</td>
+      </tr>
     </table>
 
-    <h3 style="margin-top:20px">Plans disponibles (<code>PLAN</code>)</h3>
-    <table>
-      <tr><th>Valeur</th><th>Token limit conseillé</th><th>Profil client typique</th></tr>
-      <tr><td><code>starter</code></td><td>500 000 / mois</td><td>PME, 1–5 utilisateurs, usage modéré</td></tr>
-      <tr><td><code>pro</code></td><td>1 500 000 / mois</td><td>Équipe 5–20 personnes, usage régulier</td></tr>
-      <tr><td><code>enterprise</code></td><td>5 000 000 / mois</td><td>Grande organisation, usage intensif</td></tr>
-    </table>
-
-    <div class="callout callout-info" style="margin-top:16px">
+    <div class="callout callout-info">
       <span class="callout-icon">💡</span>
-      <span>Le quota (<code>TOKEN_LIMIT</code>) peut être modifié à tout moment depuis <strong>Administration → Utilisation → ⚙ Configurer</strong> sans toucher à la base de données.</span>
+      <span>Le quota (<code>TOKEN_LIMIT</code>) et le plan peuvent être modifiés à tout moment depuis <strong>Administration → ⚙ Configurer</strong> sans toucher à la base de données. Le changement de plan via l'admin web met également à jour <code>planStartedAt</code> automatiquement.</span>
+    </div>
+
+    <h3>Codes pays disponibles (<code>COUNTRY_CODE</code>)</h3>
+    <table>
+      <tr><th>Code</th><th>Pays</th><th>Devise</th><th>Région</th></tr>
+      <tr><td><code>SN</code></td><td>Sénégal</td><td>XOF (FCFA)</td><td>WA</td></tr>
+      <tr><td><code>ML</code></td><td>Mali</td><td>XOF (FCFA)</td><td>WA</td></tr>
+      <tr><td><code>CI</code></td><td>Côte d'Ivoire</td><td>XOF (FCFA)</td><td>WA</td></tr>
+      <tr><td><code>BF</code></td><td>Burkina Faso</td><td>XOF (FCFA)</td><td>WA</td></tr>
+      <tr><td><code>GN</code></td><td>Guinée</td><td>GNF</td><td>WA</td></tr>
+      <tr><td><code>MA</code></td><td>Maroc</td><td>MAD (Dirham)</td><td>MAGHREB</td></tr>
+      <tr><td><code>TN</code></td><td>Tunisie</td><td>TND</td><td>MAGHREB</td></tr>
+      <tr><td><code>ET</code></td><td>Éthiopie</td><td>ETB (Birr)</td><td>HOA</td></tr>
+    </table>
+  </div>
+
+  <!-- ═══ PAIEMENTS ═════════════════════════════════════════════ -->
+  <div class="section" id="payments">
+    <h2>💳 Gérer les paiements</h2>
+
+    <p>Deux modes de paiement sont disponibles depuis la page <strong>liya.digital/billing</strong> :</p>
+
+    <h3>1. Orange Money / Mobile Money (automatique)</h3>
+    <ul>
+      <li>L'utilisateur clique <strong>🟠 Payer par Orange Money</strong> → redirigé vers CinetPay</li>
+      <li>Il paie par Orange Money, Wave, MTN, ou carte bancaire</li>
+      <li>Le webhook CinetPay met à jour automatiquement le plan — <strong>aucune action de votre part</strong></li>
+      <li>L'utilisateur voit la confirmation sur la page billing avec le statut de paiement</li>
+    </ul>
+
+    <h3>2. Demande de paiement cash</h3>
+    <ul>
+      <li>L'utilisateur clique <strong>📩 Demander paiement cash</strong></li>
+      <li>Vous recevez immédiatement un email à <code>jamal9@gmail.com</code> avec : nom, entreprise, email, plan choisi, montant</li>
+      <li>Après encaissement, mettez à jour le plan manuellement (voir ci-dessous)</li>
+    </ul>
+
+    <h3>Activer un abonnement après paiement cash</h3>
+    <ol class="step-list">
+      <li>Connectez-vous sur <strong>liya.digital</strong> avec <code>jamal@siaagilesolutions.com</code>.</li>
+      <li>Allez dans <strong>Administration</strong> → onglet <strong>Entreprises</strong>.</li>
+      <li>Trouvez l'entreprise → cliquez <strong>⚙ Configurer</strong>.</li>
+      <li>Changez le <strong>Plan</strong> (ex : <code>trial</code> → <code>premium</code>) et ajustez le <strong>Quota de tokens</strong>.</li>
+      <li>Cliquez <strong>Enregistrer</strong> — l'abonnement est actif immédiatement.</li>
+    </ol>
+
+    <div class="callout callout-tip">
+      <span class="callout-icon">✅</span>
+      <span>Quand vous changez le plan via l'interface admin, la date <code>planStartedAt</code> est automatiquement mise à jour — ce qui démarre le compteur de 3 mois pour Découverte, ou efface le compte à rebours d'essai.</span>
+    </div>
+
+    <h3>Enregistrer manuellement un paiement cash dans l'historique</h3>
+    <p>Pour avoir une trace dans l'historique de facturation de l'entreprise (visible dans le dashboard) :</p>
+    <ol class="step-list">
+      <li>Administration → Entreprises → ⚙ Configurer → section <strong>Paiements</strong>.</li>
+      <li>Cliquez <strong>+ Ajouter un paiement</strong> → saisissez le montant, la période et la méthode "cash".</li>
+    </ol>
+  </div>
+
+  <!-- ═══ GESTION DES ESSAIS ════════════════════════════════════ -->
+  <div class="section" id="trial">
+    <h2>⏳ Gérer les essais gratuits (plan trial)</h2>
+
+    <p>Chaque compte créé via <strong>/register</strong> démarre automatiquement en <span class="plan plan-trial">trial</span> avec :</p>
+    <ul>
+      <li><strong>72 heures</strong> à partir de la création (<code>trialEndsAt</code> dans la base)</li>
+      <li><strong>50 000 tokens</strong> maximum</li>
+      <li><strong>Haiku et Sonnet</strong> uniquement (Opus et Réflexion approfondie bloqués)</li>
+    </ul>
+
+    <h3>Ce que voit l'utilisateur</h3>
+    <ul>
+      <li>Bandeau jaune dans <strong>/billing</strong> : "⏳ X jours, Y heures restantes"</li>
+      <li>Après expiration : bandeau rouge "🚫 Essai expiré — Choisissez un forfait"</li>
+      <li>Si il essaie d'utiliser Opus : message "L'essai gratuit est limité à Haiku et Sonnet"</li>
+    </ul>
+
+    <h3>Prolonger un essai (si nécessaire)</h3>
+    <div class="code-wrap">
+      <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+      <pre><span class="cmd">npx tsx</span> -e <span class="val">"
+import 'dotenv/config';
+import { prisma } from './lib/prisma';
+const newExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // +3 jours
+prisma.tenant.update({
+  where: { id: 'TENANT_ID_ICI' },
+  data: { trialEndsAt: newExpiry }
+}).then(t => console.log('Essai prolongé jusqu\'au', t.trialEndsAt))
+  .finally(() => prisma.\$disconnect());
+"</span></pre>
     </div>
   </div>
 
-  <!-- ═══ MODIFIER UN MOT DE PASSE ══════════════════════════════ -->
-  <div class="section">
-    <h2>🔑 Changer le mot de passe d'un utilisateur existant</h2>
-    <p>Deux méthodes :</p>
+  <!-- ═══ RÉINITIALISER MOT DE PASSE ═══════════════════════════ -->
+  <div class="section" id="password">
+    <h2>🔑 Réinitialiser un mot de passe</h2>
 
     <h3>Méthode 1 — Interface web (recommandé)</h3>
     <ol class="step-list">
-      <li>Connectez-vous sur <strong>assistai-six.vercel.app</strong> avec <code>jamal@siaagilesolutions.com</code>.</li>
-      <li>Cliquez sur <strong>Administration</strong> dans la barre latérale.</li>
-      <li>Onglet <strong>Utilisateurs</strong> → trouvez l'utilisateur → cliquez <strong>🔑 Modifier</strong>.</li>
+      <li>Connectez-vous sur <strong>liya.digital</strong> avec votre compte superadmin.</li>
+      <li><strong>Administration → Utilisateurs</strong> → trouvez l'utilisateur → <strong>🔑 Modifier</strong>.</li>
       <li>Saisissez le nouveau mot de passe → <strong>Enregistrer</strong>.</li>
     </ol>
 
-    <h3>Méthode 2 — Terminal</h3>
+    <h3>Méthode 2 — Script (pour votre propre compte ou en cas de blocage)</h3>
     <div class="code-wrap">
       <button class="copy-btn" onclick="copyCode(this)">Copier</button>
-      <pre><span class="comment"># Remplacez l'email et le nouveau mot de passe</span>
-<span class="cmd">node</span> -e <span class="val">"
-const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('./app/generated/prisma/client');
-// ... voir prisma/add-user.ts pour le pattern complet
-"</span>
-
-<span class="comment"># Ou plus simplement via l'API admin (si vous avez curl) :</span>
-<span class="comment"># (nécessite un cookie de session valide)</span></pre>
+      <pre><span class="flag">EMAIL</span>=<span class="val">"utilisateur@entreprise.com"</span> \
+<span class="flag">PASSWORD</span>=<span class="val">"NouveauMotDePasse123!"</span> \
+<span class="cmd">npx tsx prisma/reset-password.ts</span></pre>
     </div>
-    <div class="callout callout-tip">
-      <span class="callout-icon">✅</span>
-      <span>Utilisez toujours la <strong>Méthode 1</strong> (interface web) — c'est plus rapide et sans risque d'erreur.</span>
+
+    <p>Exemple de résultat :</p>
+    <div class="code-wrap">
+      <pre><span class="out">✅  Mot de passe réinitialisé !
+
+    Email      : utilisateur@entreprise.com
+    Rôle       : admin
+    Actif      : true
+    Nouveau MDP: NouveauMotDePasse123!</span></pre>
+    </div>
+
+    <div class="callout callout-danger">
+      <span class="callout-icon">🔴</span>
+      <span>Si <strong>votre propre compte superadmin</strong> est bloqué (comme aujourd'hui), c'est la seule méthode disponible. Le script met aussi <code>active: true</code> en cas de suspension accidentelle.</span>
+    </div>
+
+    <h3>Réinitialiser le compte superadmin</h3>
+    <div class="code-wrap">
+      <button class="copy-btn" onclick="copyCode(this)">Copier</button>
+      <pre><span class="flag">EMAIL</span>=<span class="val">"jamal@siaagilesolutions.com"</span> \
+<span class="flag">PASSWORD</span>=<span class="val">"VotreNouveauMotDePasse!"</span> \
+<span class="cmd">npx tsx prisma/reset-password.ts</span></pre>
     </div>
   </div>
 
   <!-- ═══ SUSPENDRE / RÉACTIVER ══════════════════════════════════ -->
-  <div class="section">
+  <div class="section" id="suspend">
     <h2>🚫 Suspendre ou réactiver un utilisateur</h2>
     <p>Depuis l'interface web : <strong>Administration → Utilisateurs → bouton Actif/Suspendu</strong>.</p>
     <p>Un utilisateur suspendu ne peut plus se connecter mais ses données sont conservées.</p>
+    <div class="callout callout-warn">
+      <span class="callout-icon">⚠️</span>
+      <span>Il est impossible de suspendre ou de modifier le mot de passe d'un compte <strong>superadmin</strong> depuis l'interface admin d'entreprise — seulement depuis un autre compte superadmin.</span>
+    </div>
+  </div>
+
+  <!-- ═══ SÉCURITÉ SUPERADMIN ═══════════════════════════════════ -->
+  <div class="section" id="superadmin">
+    <h2>🛡️ Compte superadmin — règles de sécurité</h2>
+
+    <table>
+      <tr><th>Action</th><th>Admin entreprise</th><th>Superadmin</th></tr>
+      <tr><td>Voir les utilisateurs de sa société</td><td>✅</td><td>✅ (toutes sociétés)</td></tr>
+      <tr><td>Voir les comptes superadmin</td><td>❌ masqués</td><td>✅</td></tr>
+      <tr><td>Modifier le mot de passe d'un superadmin</td><td>❌ bloqué</td><td>✅</td></tr>
+      <tr><td>Suspendre un superadmin</td><td>❌ bloqué</td><td>✅</td></tr>
+      <tr><td>Modifier le plan d'une entreprise</td><td>❌</td><td>✅</td></tr>
+      <tr><td>Voir toutes les entreprises</td><td>❌ (sa société seulement)</td><td>✅</td></tr>
+    </table>
+
+    <div class="callout callout-info">
+      <span class="callout-icon">💡</span>
+      <span>Pour <strong>attribuer le rôle superadmin</strong> à un nouvel utilisateur :
+        <code style="display:block;margin-top:8px">EMAIL="nouveau@email.com" npx tsx prisma/set-superadmin.ts</code>
+        (éditez d'abord l'email dans le fichier <span class="path-tag">prisma/set-superadmin.ts</span>)
+      </span>
+    </div>
+  </div>
+
+  <!-- ═══ FONCTIONNALITÉS PLATEFORME ═══════════════════════════ -->
+  <div class="section">
+    <h2>🚀 Fonctionnalités clés de la plateforme</h2>
+
+    <h3>Modèles disponibles</h3>
+    <table>
+      <tr><th>Modèle</th><th>Coeff. facturation</th><th>Usage</th><th>Plans minimum</th></tr>
+      <tr><td>⚡ Haiku</td><td>×0,3</td><td>Tâches simples, rapide</td><td>Tous (trial inclus)</td></tr>
+      <tr><td>✦ Sonnet</td><td>×1</td><td>Usage général (recommandé)</td><td>Tous (trial inclus)</td></tr>
+      <tr><td>◆ Opus</td><td>×5</td><td>Analyses complexes</td><td>Découverte, Premium, Business</td></tr>
+      <tr><td>◆ Opus + Réflexion</td><td>×5 + budget tokens</td><td>Raisonnement avancé</td><td>Premium, Business uniquement</td></tr>
+    </table>
+
+    <h3>Formats de fichiers supportés</h3>
+    <table>
+      <tr><th>Format</th><th>Lecture (upload)</th><th>Génération (sortie)</th></tr>
+      <tr><td>PDF (.pdf)</td><td>✅ extraction texte</td><td>—</td></tr>
+      <tr><td>Word (.docx)</td><td>✅ extraction texte</td><td>✅ génération complète</td></tr>
+      <tr><td>Excel (.xlsx)</td><td>✅ extraction CSV</td><td>✅ génération complète</td></tr>
+      <tr><td>PowerPoint (.pptx)</td><td>✅ extraction texte des slides</td><td>✅ génération complète</td></tr>
+      <tr><td>Images (jpg, png, webp, gif)</td><td>✅ vision Claude</td><td>—</td></tr>
+      <tr><td>Texte, CSV, JSON, code…</td><td>✅</td><td>—</td></tr>
+      <tr><td>.xls / .doc (anciens formats)</td><td>❌ (convertir en xlsx/docx)</td><td>—</td></tr>
+    </table>
+
+    <h3>Recherche internet &amp; images</h3>
+    <ul>
+      <li>Claude recherche automatiquement sur internet quand nécessaire (prix, actualités, données récentes)</li>
+      <li>Indicateur <strong>🔍 Recherche sur internet…</strong> affiché pendant la recherche</li>
+      <li>Indicateur <strong>🌐 Récupération de la page…</strong> lors de l'accès à une page pour images</li>
+      <li>Les images trouvées s'affichent directement dans le chat sous forme de vignettes</li>
+    </ul>
+
+    <h3>Langues de l'interface</h3>
+    <ul>
+      <li>🇫🇷 Français (<code>liya.digital/fr</code>) — prix en FCFA</li>
+      <li>🇬🇧 Anglais (<code>liya.digital/en</code>) — prix en USD</li>
+      <li>🇲🇦 Arabe/RTL (<code>liya.digital/ar</code>) — prix en MAD (Dirham)</li>
+    </ul>
   </div>
 
   <!-- ═══ ERREURS FRÉQUENTES ════════════════════════════════════ -->
-  <div class="section">
+  <div class="section" id="errors">
     <h2>🔧 Erreurs fréquentes et solutions</h2>
     <table>
       <tr><th>Message d'erreur</th><th>Cause</th><th>Solution</th></tr>
       <tr>
+        <td><code>Email ou mot de passe incorrect</code></td>
+        <td>Mot de passe erroné ou hash incorrect en base</td>
+        <td>Réinitialiser avec <code>npx tsx prisma/reset-password.ts</code></td>
+      </tr>
+      <tr>
         <td><code>❌ Entreprise introuvable</code></td>
-        <td>Le <code>TENANT_ID</code> est incorrect ou mal copié</td>
-        <td>Relancez <code>npx tsx prisma/list-tenants.ts</code> et recopiez l'ID exact</td>
+        <td>Le <code>TENANT_ID</code> est incorrect</td>
+        <td>Relancez <code>npx tsx prisma/list-tenants.ts</code> et recopiez l'ID</td>
       </tr>
       <tr>
         <td><code>⚠️ L'email est déjà utilisé</code></td>
-        <td>Un compte existe déjà avec cet email</td>
-        <td>Vérifiez dans Administration → Utilisateurs. L'utilisateur a peut-être oublié son mot de passe.</td>
+        <td>Compte existant avec cet email</td>
+        <td>Vérifiez dans Administration → Utilisateurs</td>
+      </tr>
+      <tr>
+        <td><code>trial_expired</code> (chat bloqué)</td>
+        <td>Essai 72h expiré</td>
+        <td>Mettre à jour le plan dans l'admin ou prolonger l'essai</td>
+      </tr>
+      <tr>
+        <td><code>model_not_allowed</code> (chat bloqué)</td>
+        <td>Opus utilisé sur plan trial</td>
+        <td>Changer pour Haiku ou Sonnet, ou upgrader le plan</td>
+      </tr>
+      <tr>
+        <td><code>quota_exceeded</code> (chat bloqué)</td>
+        <td>Quota mensuel atteint</td>
+        <td>Admin → ⚙ Configurer → augmenter le TOKEN_LIMIT ou vendre une recharge</td>
       </tr>
       <tr>
         <td><code>P1000: Authentication failed</code></td>
-        <td>Le fichier <code>.env</code> est absent ou le mot de passe DB est incorrect</td>
+        <td>Fichier <code>.env</code> absent ou incorrect</td>
         <td>Vérifiez que vous êtes dans le bon dossier et que <code>.env</code> existe</td>
       </tr>
       <tr>
         <td><code>Cannot find module</code></td>
         <td>Node 20 non activé ou dépendances manquantes</td>
-        <td>Relancez <code>export PATH="/usr/local/opt/node@20/bin:$PATH"</code> puis <code>npm install</code></td>
+        <td><code>export PATH="/usr/local/opt/node@20/bin:$PATH"</code> puis <code>npm install</code></td>
       </tr>
       <tr>
-        <td><code>pyenv: pip: command not found</code></td>
-        <td>Message inoffensif de pyenv — ignorez-le</td>
-        <td>Ne rien faire — la commande s'est bien exécutée malgré ce message</td>
+        <td>Page <code>404 This page could not be found</code></td>
+        <td>Route manquante dans <code>app/[locale]/</code></td>
+        <td>Contacter le développeur — le middleware de locale a besoin d'une page locale</td>
       </tr>
     </table>
   </div>
 
-  <!-- ═══ RÉCAPITULATIF RAPIDE ══════════════════════════════════ -->
-  <div class="section">
+  <!-- ═══ AIDE-MÉMOIRE ══════════════════════════════════════════ -->
+  <div class="section" id="cheatsheet">
     <h2>⚡ Aide-mémoire ultra-rapide</h2>
     <table>
-      <tr><th>Action</th><th>Commande</th></tr>
+      <tr><th>Action</th><th>Commande / Endroit</th></tr>
       <tr><td>Voir les entreprises et IDs</td><td><code>npx tsx prisma/list-tenants.ts</code></td></tr>
       <tr><td>Ajouter un utilisateur (entreprise existante)</td><td><code>EMAIL="…" NAME="…" TENANT_ID="…" PASSWORD="…" npx tsx prisma/add-user.ts</code></td></tr>
-      <tr><td>Créer une entreprise + premier utilisateur</td><td><code>COMPANY="…" EMAIL="…" NAME="…" PASSWORD="…" npx tsx prisma/create-company.ts</code></td></tr>
-      <tr><td>Changer un mot de passe</td><td>Interface web → Administration → 🔑 Modifier</td></tr>
-      <tr><td>Suspendre un compte</td><td>Interface web → Administration → bouton Actif</td></tr>
-      <tr><td>Modifier le quota tokens</td><td>Interface web → Administration → Utilisation → ⚙ Configurer</td></tr>
+      <tr><td>Créer une entreprise + premier utilisateur</td><td><code>COMPANY="…" EMAIL="…" PASSWORD="…" PLAN="premium" npx tsx prisma/create-company.ts</code></td></tr>
+      <tr><td>Réinitialiser un mot de passe</td><td><code>EMAIL="…" PASSWORD="…" npx tsx prisma/reset-password.ts</code></td></tr>
+      <tr><td>Activer un abonnement après paiement cash</td><td>liya.digital → Admin → Entreprises → ⚙ Configurer → changer Plan</td></tr>
+      <tr><td>Changer le quota tokens</td><td>Admin → Entreprises → ⚙ Configurer → TOKEN_LIMIT</td></tr>
+      <tr><td>Suspendre un compte</td><td>Admin → Utilisateurs → bouton Actif/Suspendu</td></tr>
+      <tr><td>Changer mot de passe utilisateur</td><td>Admin → Utilisateurs → 🔑 Modifier</td></tr>
+      <tr><td>Prolonger un essai gratuit</td><td>Voir section "Gérer les essais" ci-dessus</td></tr>
+      <tr><td>Attribuer le rôle superadmin</td><td><code>npx tsx prisma/set-superadmin.ts</code></td></tr>
     </table>
+
+    <div class="callout callout-info" style="margin-top:16px">
+      <span class="callout-icon">🌐</span>
+      <span><strong>URL de la plateforme :</strong> <a href="https://liya.digital" target="_blank">https://liya.digital</a><br>
+      <strong>Repo GitHub :</strong> <a href="https://github.com/jsia9/assistai" target="_blank">github.com/jsia9/assistai</a> (auto-déployé sur Vercel à chaque push sur <code>main</code>)</span>
+    </div>
   </div>
 
   <div class="footer">
-    Kamali — Guide Administrateur Interne &nbsp;·&nbsp; Ne pas diffuser &nbsp;·&nbsp; <span id="year"></span>
+    LIYA — Guide Administrateur Interne &nbsp;·&nbsp; Ne pas diffuser &nbsp;·&nbsp; <span id="year"></span>
   </div>
 
 </div>
@@ -376,7 +645,6 @@ const { PrismaClient } = require('./app/generated/prisma/client');
   document.getElementById("year").textContent = new Date().getFullYear();
 
   function switchTab(el, targetId) {
-    // deactivate all tabs and panels
     el.closest(".section").querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
     el.closest(".section").querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
     el.classList.add("active");
@@ -391,7 +659,6 @@ const { PrismaClient } = require('./app/generated/prisma/client');
       btn.classList.add("copied");
       setTimeout(() => { btn.textContent = "Copier"; btn.classList.remove("copied"); }, 2000);
     }).catch(() => {
-      // Fallback for older browsers
       const ta = document.createElement("textarea");
       ta.value = text;
       document.body.appendChild(ta);
