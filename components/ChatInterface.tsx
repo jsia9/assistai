@@ -109,6 +109,10 @@ export default function ChatInterface({
   // ── Extended Thinking ─────────────────────────────────────────
   const [extendedThinking, setExtendedThinking] = useState(false);
 
+  // ── Web Search Mode ───────────────────────────────────────────
+  // When true, the backend injects an instruction to always use web_search
+  const [webSearchMode, setWebSearchMode] = useState(false);
+
   // ── Model selection (persisted to localStorage) ──────────────
   const [model, setModel] = useState<ModelId>(() => {
     if (typeof window === "undefined") return DEFAULT_MODEL;
@@ -302,6 +306,7 @@ export default function ChatInterface({
           projectId: projId,
           model: selectedModel,
           extendedThinking: extendedThinking && selectedModel !== "claude-haiku-4-5",
+          forceWebSearch: webSearchMode,
         }),
       });
 
@@ -837,8 +842,23 @@ export default function ChatInterface({
                   </span>
                 )}
 
-                {/* Extended Thinking toggle */}
+                {/* Toolbar toggles */}
                 <div className="ml-auto flex items-center gap-2">
+                  {/* Web search toggle */}
+                  <button
+                    onClick={() => setWebSearchMode((v) => !v)}
+                    title={webSearchMode ? "Désactiver la recherche internet" : "Activer la recherche internet"}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                      webSearchMode
+                        ? "bg-sky-500 border-sky-500 text-white"
+                        : "border-gray-200 text-gray-500 bg-white hover:border-sky-300 hover:text-sky-600"
+                    }`}
+                  >
+                    <span>🔍</span>
+                    <span>Web</span>
+                  </button>
+
+                  {/* Extended Thinking toggle */}
                   <button
                     onClick={() => model !== "claude-haiku-4-5" && setExtendedThinking((v) => !v)}
                     disabled={model === "claude-haiku-4-5"}
@@ -878,6 +898,14 @@ export default function ChatInterface({
 
             {/* Input */}
             <div className="border-t border-gray-100 bg-white px-4 py-3">
+              {/* Web search active banner */}
+              {webSearchMode && (
+                <div className="max-w-3xl mx-auto mb-2 flex items-center gap-2 text-[11px] text-sky-700 bg-sky-50 border border-sky-200 rounded-lg px-3 py-1.5">
+                  <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse flex-shrink-0" />
+                  <span>Recherche internet activée — LIYA va consulter le web pour répondre</span>
+                  <button onClick={() => setWebSearchMode(false)} className="ml-auto text-sky-400 hover:text-sky-600 font-bold" title="Désactiver">✕</button>
+                </div>
+              )}
               <div className="flex items-end gap-2 max-w-3xl mx-auto">
                 <input ref={fileInputRef} type="file" multiple accept={ACCEPTED_FILES} className="hidden" onChange={handleFileSelect} />
                 <button
@@ -895,8 +923,8 @@ export default function ChatInterface({
                   onKeyDown={handleKeyDown}
                   rows={1}
                   disabled={streaming}
-                  placeholder="Tapez votre message… (Entrée pour envoyer)"
-                  className="flex-1 resize-none border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-aria-indigo focus:ring-0 disabled:opacity-50 max-h-28 leading-relaxed"
+                  placeholder={webSearchMode ? "Posez votre question — LIYA va chercher sur internet…" : "Tapez votre message… (Entrée pour envoyer)"}
+                  className={`flex-1 resize-none rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-0 disabled:opacity-50 max-h-28 leading-relaxed border transition-colors ${webSearchMode ? "border-sky-300 focus:border-sky-500" : "border-gray-300 focus:border-aria-indigo"}`}
                 />
                 <button
                   onClick={sendMessage}

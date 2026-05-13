@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
     projectId: bodyProjectId = null,
     model: rawModel = DEFAULT_MODEL,
     extendedThinking = false,
+    forceWebSearch = false,
   } = body as {
     conversationId: string | null;
     message: string;
@@ -56,6 +57,7 @@ export async function POST(req: NextRequest) {
     projectId: string | null;
     model: string;
     extendedThinking: boolean;
+    forceWebSearch: boolean;
   };
 
   // Validate model — fall back to default if client sends an unexpected value
@@ -292,9 +294,14 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
     (tenant?.systemPrompt?.trim() || null) ||
     SYSTEM_PROMPT;
 
-  const systemPrompt = MAGHREB_SYSTEM_ADDENDUM
-    ? `${baseSystemPrompt}\n\n${MAGHREB_SYSTEM_ADDENDUM}`.trim()
-    : baseSystemPrompt;
+  const webSearchAddendum = forceWebSearch
+    ? "\n\nIMPORTANT : Pour ce message, utilise OBLIGATOIREMENT l'outil web_search pour rechercher des informations récentes sur internet avant de répondre. Si pertinent, utilise aussi web_fetch pour récupérer le contenu complet d'une page. Présente les sources et, si tu trouves des images pertinentes, affiche-les avec la syntaxe Markdown ![description](url)."
+    : "";
+
+  const systemPrompt = [
+    MAGHREB_SYSTEM_ADDENDUM ? `${baseSystemPrompt}\n\n${MAGHREB_SYSTEM_ADDENDUM}` : baseSystemPrompt,
+    webSearchAddendum,
+  ].join("").trim();
 
   // ── Stored content (no base64 images in DB) ───────────────────
   const storedUserContent =
