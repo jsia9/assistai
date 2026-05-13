@@ -295,7 +295,7 @@ ${tenantCountryCode === "TN" ? "5. Pour la Tunisie : utilise les références ju
     SYSTEM_PROMPT;
 
   const webSearchAddendum = forceWebSearch
-    ? "\n\nIMPORTANT : Pour ce message, utilise OBLIGATOIREMENT l'outil web_search pour rechercher des informations récentes sur internet avant de répondre. Si pertinent, utilise aussi web_fetch pour récupérer le contenu complet d'une page. Présente les sources et, si tu trouves des images pertinentes, affiche-les avec la syntaxe Markdown ![description](url)."
+    ? "\n\nINSTRUCTION OBLIGATOIRE POUR CE MESSAGE : 1) Utilise web_search pour trouver des informations récentes. 2) Utilise web_fetch sur les pages trouvées pour extraire les URLs directes des images. 3) Affiche les images en haut de ta réponse avec la syntaxe exacte : ![description](URL_image) — une par ligne, avant le texte. 4) Cite tes sources. L'affichage d'images est OBLIGATOIRE si des visuels existent pour ce sujet."
     : "";
 
   const systemPrompt = [

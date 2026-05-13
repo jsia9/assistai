@@ -22,7 +22,7 @@ const securityHeaders = [
   // - default-src 'self'         → fallback: only same origin
   // - script-src 'self' 'unsafe-inline'  → Next.js inline scripts + hydration
   // - style-src  'self' 'unsafe-inline'  → Tailwind inline styles
-  // - img-src    'self' data: blob:      → uploaded image previews
+  // - img-src    'self' data: blob: https:  → uploaded previews + web search images
   // - font-src   'self' data:            → self-hosted fonts
   // - connect-src 'self' https://api.anthropic.com
   //               → chat streaming calls to Anthropic
@@ -33,7 +33,7 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       "connect-src 'self' https://api.anthropic.com",
       "frame-ancestors 'none'",
