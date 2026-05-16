@@ -118,7 +118,12 @@ function BillingViewInner() {
 
         if (result.status === "FAILED" || result.status === "CANCELLED") {
           setPaymentStatusLoading(false);
-          showToast("error", `Paiement ${result.status === "CANCELLED" ? "annulé" : "échoué"}. Veuillez réessayer.`);
+          showToast(
+            "error",
+            result.status === "CANCELLED"
+              ? "❌ Paiement annulé. Aucun montant n'a été débité. Vous pouvez réessayer."
+              : "❌ Paiement échoué. Aucun montant n'a été débité et votre offre n'a pas changé. Vérifiez votre solde Orange Money et réessayez."
+          );
           return;
         }
 

@@ -87,6 +87,8 @@ export default function ChatInterface({
   const [streaming, setStreaming] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounter = useRef(0);
 
   // ── Token usage ───────────────────────────────────────────────
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
@@ -443,8 +445,7 @@ export default function ChatInterface({
     if (el) { el.style.height = "auto"; el.style.height = Math.min(el.scrollHeight, 120) + "px"; }
   }
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
+  async function processFiles(files: File[]) {
     if (!files.length) return;
     setUploading(true);
     for (const file of files) {
@@ -457,7 +458,37 @@ export default function ChatInterface({
       } catch { alert("Erreur lors du chargement du fichier."); }
     }
     setUploading(false);
+  }
+
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    await processFiles(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) setIsDragOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setIsDragOver(false);
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (streaming || uploading) return;
+    await processFiles(files);
   }
 
   function removeAttachment(idx: number) {
@@ -737,7 +768,21 @@ export default function ChatInterface({
             )}
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
+            <div
+              className="flex-1 overflow-y-auto px-4 py-6 space-y-4 relative"
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            >
+              {/* Drop overlay */}
+              {isDragOver && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-aria-indigo/10 border-2 border-dashed border-aria-indigo rounded-2xl m-3 pointer-events-none">
+                  <div className="text-5xl mb-3">📎</div>
+                  <p className="text-aria-indigo font-semibold text-lg">Déposez vos fichiers ici</p>
+                  <p className="text-aria-stone text-sm mt-1">PDF, Word, Excel, PPTX, images…</p>
+                </div>
+              )}
               {messages.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full text-center text-gray-400 space-y-2">
                   <div className="text-4xl">{currentProject ? "📁" : "💬"}</div>

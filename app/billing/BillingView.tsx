@@ -121,7 +121,12 @@ function BillingViewInner() {
 
         if (result.status === "FAILED" || result.status === "CANCELLED") {
           setPaymentStatusLoading(false);
-          showToast("error", `Paiement ${result.status === "CANCELLED" ? "annulé" : "échoué"}. Veuillez réessayer.`);
+          showToast(
+            "error",
+            result.status === "CANCELLED"
+              ? "❌ Paiement annulé. Aucun montant n'a été débité. Vous pouvez réessayer."
+              : "❌ Paiement échoué. Aucun montant n'a été débité et votre offre n'a pas changé. Vérifiez votre solde Orange Money et réessayez."
+          );
           return;
         }
 
@@ -202,9 +207,10 @@ function BillingViewInner() {
         showToast("error", err.error ?? "Erreur lors de l'envoi de la demande.");
         return;
       }
+      const { paymentId } = await res.json();
       showToast(
         "success",
-        "✅ Demande envoyée ! Vous serez contacté sous 24h pour finaliser votre abonnement."
+        `✅ Demande enregistrée ! Notre équipe vous contactera sous 24h. Réf: ${paymentId?.slice(-8) ?? "—"}`
       );
     } catch {
       showToast("error", "Erreur réseau. Vérifiez votre connexion et réessayez.");
@@ -386,6 +392,7 @@ function BillingViewInner() {
                     <button
                       onClick={() => handleUpgradePayment(key, price)}
                       disabled={upgradeLoading !== null}
+                      title="Paiement sécurisé via CinetPay — aucun débit si le paiement échoue"
                       className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
                     >
                       {upgradeLoading === key ? "Chargement…" : "🟠 Payer par Orange Money"}

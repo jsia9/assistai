@@ -21,14 +21,14 @@ export async function POST(req: Request) {
     );
   }
 
-  let body: { type?: string; amount?: number; period?: string; channel?: string };
+  let body: { type?: string; amount?: number; period?: string; channel?: string; plan?: string };
   try {
     body = await req.json();
   } catch {
     return new Response("Corps JSON invalide", { status: 400 });
   }
 
-  const { type = "subscription", amount, period, channel = "ALL" } = body;
+  const { type = "subscription", amount, period, channel = "ALL", plan } = body;
 
   // Validation
   if (type !== "subscription" && type !== "topup") {
@@ -81,6 +81,7 @@ export async function POST(req: Request) {
       status: "PENDING",
       initiatedAt: new Date(),
       createdById: session.user.id,
+      notes: plan ? JSON.stringify({ targetPlan: plan }) : null,
     },
   });
 

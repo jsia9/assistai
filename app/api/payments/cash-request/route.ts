@@ -8,6 +8,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { prisma } from "@/lib/prisma";
+import { currentPeriod } from "@/lib/billing";
 import nodemailer from "nodemailer";
 
 function escHtml(s: string): string {
@@ -68,6 +69,24 @@ export async function POST(req: NextRequest) {
   const safePeriod = period ? escHtml(String(period)) : "—";
   const safeAmount = amountFcfa.toLocaleString("fr-FR");
 
+  // Create PENDING cash payment in DB so admin can track and validate it
+  const cashPayment = await prisma.payment.create({
+    data: {
+      tenantId: session.user.tenantId,
+      amountFcfa: amountFcfa as number,
+      amount: amountFcfa as number,
+      currency: "XOF",
+      type: "subscription",
+      tokensAdded: 0,
+      method: "cash",
+      period: (period as string) ?? currentPeriod(),
+      status: "PENDING",
+      initiatedAt: new Date(),
+      createdById: session.user.id,
+      notes: JSON.stringify({ targetPlan: plan, requestedBy: session.user.email }),
+    },
+  });
+
   try {
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -96,10 +115,12 @@ export async function POST(req: NextRequest) {
 <p><strong>Email :</strong> ${userEmail}</p>
 <p><strong>Plan demandé :</strong> ${safePlan}</p>
 <p><strong>Montant :</strong> ${safeAmount} FCFA</p>
-<p><strong>Période :</strong> ${safePeriod}</p>`,
+<p><strong>Période :</strong> ${safePeriod}</p>
+<p><strong>ID Paiement :</strong> ${cashPayment.id}</p>
+<p><a href="${process.env.NEXTAUTH_URL ?? "https://liya.digital"}/fr/admin">→ Valider dans l'admin panel</a></p>`,
     });
 
-    return Response.json({ success: true });
+    return Response.json({ success: true, paymentId: cashPayment.id });
   } catch (err) {
     console.error("Cash request email error:", err);
     return Response.json({ error: "Erreur d'envoi de l'e-mail." }, { status: 500 });

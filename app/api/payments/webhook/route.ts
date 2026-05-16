@@ -3,7 +3,7 @@ import type { Prisma } from "@/app/generated/prisma/client";
 import { getProviderByName } from "@/lib/payments/router";
 import { cinetPayProvider } from "@/lib/payments/providers/cinetpay";
 import { WebhookSignatureError } from "@/lib/payments/types";
-import { tokensForTopup } from "@/lib/billing";
+import { tokensForTopup, PLAN_TOKENS, PLAN_MAX_DAYS } from "@/lib/billing";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/logger";
 
@@ -104,6 +104,32 @@ export async function POST(req: Request) {
           where: { id: payment.tenantId },
           data: { monthlyTokenLimit: { increment: tokensAdded } },
         });
+      }
+
+      // Activate subscription plan if targetPlan is stored in notes
+      if (payment.type === "subscription" && payment.notes) {
+        try {
+          const meta = JSON.parse(payment.notes) as { targetPlan?: string };
+          if (meta.targetPlan) {
+            const plan = meta.targetPlan;
+            const baseTokens = PLAN_TOKENS[plan] ?? 500_000;
+            const maxDays = PLAN_MAX_DAYS[plan] ?? null;
+            const now = new Date();
+            const trialEndsAt = plan === "trial" && maxDays
+              ? new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000)
+              : null;
+            await tx.tenant.update({
+              where: { id: payment.tenantId },
+              data: {
+                plan,
+                monthlyTokenLimit: baseTokens,
+                active: true,
+                planStartedAt: now,
+                trialEndsAt,
+              },
+            });
+          }
+        } catch { /* invalid JSON in notes, skip */ }
       }
     });
 
