@@ -94,7 +94,32 @@ export function currentPeriod(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
-/** Calcule les tokens ajoutés pour un montant FCFA de recharge */
+/** Calcule les tokens ajoutés pour un montant FCFA de recharge (par tranches entières) */
 export function tokensForTopup(amountFcfa: number): number {
   return Math.floor(amountFcfa / TOPUP_FCFA) * TOPUP_TOKENS;
 }
+
+/**
+ * Calcule les tokens bonus au prorata du surplus payé au-delà du prix du plan.
+ * Exemple : surplus 5 000 FCFA → floor(5 000 × 200 000 / 10 000) = 100 000 tokens
+ */
+export function tokensForSurplus(surplusFcfa: number): number {
+  if (surplusFcfa <= 0) return 0;
+  return Math.floor(surplusFcfa * (TOPUP_TOKENS / TOPUP_FCFA));
+}
+
+/** Labels lisibles par plan */
+export const PLAN_LABELS: Record<string, string> = {
+  trial:      "Essai 72h",
+  decouverte: "Découverte",
+  premium:    "Premium ⭐",
+  business5:  "Business 5",
+  business20: "Business 20",
+  // legacy
+  starter:    "Starter (legacy)",
+  pro:        "Pro (legacy)",
+  enterprise: "Enterprise (legacy)",
+};
+
+/** Plans actifs (non-legacy) proposables au client */
+export const ACTIVE_PLANS = ["trial", "decouverte", "premium", "business5", "business20"] as const;

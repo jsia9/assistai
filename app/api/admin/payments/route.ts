@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { tokensForTopup, currentPeriod } from "@/lib/billing";
+import { tokensForTopup, tokensForSurplus, PLAN_TOKENS, PLAN_MAX_DAYS, currentPeriod } from "@/lib/billing";
 import { audit } from "@/lib/audit";
 
 export async function GET() {
@@ -41,6 +41,9 @@ export async function POST(req: Request) {
     reference,
     period,
     notes,
+    // Optional: activate a new plan at the same time as recording payment.
+    // { plan: "premium", planPriceFcfa: 20000 }
+    planActivation,
   } = await req.json();
 
   if (!tenantId || !amountFcfa || !period) {
@@ -59,8 +62,10 @@ export async function POST(req: Request) {
   }
 
   let tokensAdded = 0;
+  let planChanged = false;
+  let newPlanKey = "";
 
-  // Pour une recharge de tokens : calculer les tokens à ajouter et augmenter le quota
+  // ── Cas 1 : Recharge de tokens ─────────────────────────────────────
   if (type === "topup") {
     tokensAdded = tokensForTopup(parsedAmount);
     if (tokensAdded > 0) {
@@ -69,6 +74,42 @@ export async function POST(req: Request) {
         data: { monthlyTokenLimit: { increment: tokensAdded } },
       });
     }
+  }
+
+  // ── Cas 2 : Abonnement avec activation d'une nouvelle offre ────────
+  // planActivation = { plan: "premium", planPriceFcfa: 20000 }
+  // Si le montant payé > prix du plan → tokens bonus au prorata du surplus
+  if (type === "subscription" && planActivation?.plan) {
+    const { plan, planPriceFcfa } = planActivation as { plan: string; planPriceFcfa: number };
+    const planPrice = Number(planPriceFcfa) || 0;
+    const surplus = Math.max(0, parsedAmount - planPrice);
+    const bonusTokens = tokensForSurplus(surplus);
+    const baseTokens = PLAN_TOKENS[plan] ?? 500_000;
+    tokensAdded = bonusTokens; // only bonus tracked on payment; base comes from plan
+    newPlanKey = plan;
+    planChanged = true;
+
+    // Compute plan lifecycle timestamps
+    const now = new Date();
+    const maxDays = PLAN_MAX_DAYS[plan] ?? null;
+    const trialEndsAt = plan === "trial" && maxDays
+      ? new Date(now.getTime() + maxDays * 24 * 60 * 60 * 1000)
+      : null;
+
+    await prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        plan,
+        monthlyTokenLimit: baseTokens + bonusTokens,
+        active: true,
+        planStartedAt: now,
+        trialEndsAt,
+      },
+    });
+
+    await audit(req, session, "tenant.plan_change",
+      { type: "Tenant", id: tenantId },
+      { from: tenant.plan, to: plan, amountFcfa: parsedAmount, surplus, bonusTokens });
   }
 
   const payment = await prisma.payment.create({
@@ -94,7 +135,8 @@ export async function POST(req: Request) {
     {
       tenantId, tenantName: tenant.name, type, amountFcfa: parsedAmount,
       method, reference: reference ?? null, period, tokensAdded,
+      planChanged, newPlan: newPlanKey || null,
     });
 
-  return Response.json(payment, { status: 201 });
+  return Response.json({ ...payment, planChanged, newPlan: newPlanKey || null }, { status: 201 });
 }

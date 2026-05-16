@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LIYA — Architecture Technique</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f4f8; color: #1a202c; }
+
+  .page { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  h1 { font-size: 26px; font-weight: 700; color: #1a202c; margin-bottom: 6px; }
+  .subtitle { font-size: 14px; color: #718096; margin-bottom: 40px; }
+
+  /* ── DIAGRAM ── */
+  .diagram-wrap { background: #fff; border-radius: 16px; border: 1px solid #e2e8f0;
+    padding: 32px; box-shadow: 0 4px 24px rgba(0,0,0,.06); margin-bottom: 40px; overflow-x: auto; }
+
+  svg text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+  /* ── FAQ CARDS ── */
+  .faq { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .faq { grid-template-columns: 1fr; } }
+
+  .card { background: #fff; border-radius: 14px; border: 1px solid #e2e8f0;
+    padding: 22px 24px; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+  .card h3 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+    color: #718096; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .card p, .card li { font-size: 14px; line-height: 1.65; color: #2d3748; }
+  .card ul { padding-left: 18px; }
+  .card li { margin-bottom: 4px; }
+
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px;
+    border-radius: 20px; margin-left: 4px; vertical-align: middle; }
+  .badge-green  { background: #c6f6d5; color: #22543d; }
+  .badge-amber  { background: #fefcbf; color: #744210; }
+  .badge-red    { background: #fed7d7; color: #742a2a; }
+  .badge-blue   { background: #bee3f8; color: #2a4365; }
+  .badge-purple { background: #e9d8fd; color: #44337a; }
+
+  .highlight { background: #ebf8ff; border-left: 3px solid #3182ce;
+    padding: 10px 14px; border-radius: 0 8px 8px 0; margin-top: 10px; font-size: 13px; color: #2b6cb0; }
+
+  .warn { background: #fffaf0; border-left: 3px solid #dd6b20;
+    padding: 10px 14px; border-radius: 0 8px 8px 0; margin-top: 10px; font-size: 13px; color: #c05621; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>🏗️ LIYA — Architecture Technique</h1>
+  <p class="subtitle">liya.digital · Next.js 16 · Vercel · Supabase PostgreSQL · Anthropic Claude · Mai 2026</p>
+
+  <!-- ═══════════════════════════════════════════════════════════ DIAGRAM -->
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 980 540" width="100%" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#94a3b8"/>
+        </marker>
+        <marker id="arr-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6"/>
+        </marker>
+        <marker id="arr-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#f59e0b"/>
+        </marker>
+        <marker id="arr-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="#10b981"/>
+        </marker>
+        <filter id="shadow">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000015"/>
+        </filter>
+      </defs>
+
+      <!-- ── BACKGROUND ZONES ── -->
+      <!-- Browser zone -->
+      <rect x="10" y="10" width="200" height="520" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6,4"/>
+      <text x="110" y="34" text-anchor="middle" font-size="11" font-weight="700" fill="#94a3b8" letter-spacing="1">NAVIGATEUR</text>
+
+      <!-- Vercel zone -->
+      <rect x="250" y="10" width="360" height="520" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5" stroke-dasharray="6,4"/>
+      <text x="430" y="34" text-anchor="middle" font-size="11" font-weight="700" fill="#3b82f6" letter-spacing="1">VERCEL (Edge + Serverless Functions)</text>
+
+      <!-- External zone -->
+      <rect x="650" y="10" width="320" height="520" rx="14" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5" stroke-dasharray="6,4"/>
+      <text x="810" y="34" text-anchor="middle" font-size="11" font-weight="700" fill="#16a34a" letter-spacing="1">SERVICES EXTERNES</text>
+
+      <!-- ── USER BROWSER ── -->
+      <rect x="30" y="55" width="160" height="70" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="110" y="82" text-anchor="middle" font-size="18">🌍</text>
+      <text x="110" y="100" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">Utilisateur</text>
+      <text x="110" y="116" text-anchor="middle" font-size="11" fill="#718096">liya.digital/fr/chat</text>
+
+      <!-- ── NEXT.JS FRONTEND ── -->
+      <rect x="270" y="55" width="155" height="80" rx="10" fill="#fff" stroke="#bfdbfe" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="347" y="82" text-anchor="middle" font-size="17">⬢</text>
+      <text x="347" y="100" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">Next.js Frontend</text>
+      <text x="347" y="116" text-anchor="middle" font-size="11" fill="#718096">React · Tailwind</text>
+      <text x="347" y="129" text-anchor="middle" font-size="10" fill="#94a3b8">ChatInterface · MarkdownMessage</text>
+
+      <!-- ── NEXTAUTH ── -->
+      <rect x="270" y="160" width="155" height="60" rx="10" fill="#fff" stroke="#ddd6fe" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="347" y="183" text-anchor="middle" font-size="15">🔐</text>
+      <text x="347" y="200" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">NextAuth</text>
+      <text x="347" y="214" text-anchor="middle" font-size="11" fill="#718096">JWT · Credentials</text>
+
+      <!-- ── API ROUTES ── -->
+      <rect x="445" y="55" width="150" height="165" rx="10" fill="#fff" stroke="#bfdbfe" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="520" y="78" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">API Routes</text>
+      <text x="520" y="98" text-anchor="middle" font-size="11" fill="#374151">📡 /api/chat</text>
+      <text x="520" y="114" text-anchor="middle" font-size="11" fill="#374151">📎 /api/upload</text>
+      <text x="520" y="130" text-anchor="middle" font-size="11" fill="#374151">💳 /api/payments</text>
+      <text x="520" y="146" text-anchor="middle" font-size="11" fill="#374151">👤 /api/register</text>
+      <text x="520" y="162" text-anchor="middle" font-size="11" fill="#374151">📊 /api/billing</text>
+      <text x="520" y="178" text-anchor="middle" font-size="11" fill="#374151">🏢 /api/admin</text>
+      <text x="520" y="194" text-anchor="middle" font-size="10" fill="#94a3b8">Serverless · Node 20</text>
+      <text x="520" y="207" text-anchor="middle" font-size="10" fill="#94a3b8">max payload: 4.5 MB</text>
+
+      <!-- ── MIDDLEWARE ── -->
+      <rect x="270" y="245" width="155" height="55" rx="10" fill="#fff" stroke="#bfdbfe" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="347" y="266" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">Middleware</text>
+      <text x="347" y="282" text-anchor="middle" font-size="11" fill="#718096">i18n · /fr/ /en/ /ar/</text>
+      <text x="347" y="295" text-anchor="middle" font-size="10" fill="#94a3b8">proxy.ts · locale routing</text>
+
+      <!-- ── SUPABASE ── -->
+      <rect x="670" y="55" width="160" height="180" rx="10" fill="#fff" stroke="#a7f3d0" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="750" y="80" text-anchor="middle" font-size="17">🐘</text>
+      <text x="750" y="100" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">Supabase</text>
+      <text x="750" y="116" text-anchor="middle" font-size="11" fill="#059669">PostgreSQL</text>
+      <text x="750" y="136" text-anchor="middle" font-size="10" fill="#374151">• Tenants / Users</text>
+      <text x="750" y="152" text-anchor="middle" font-size="10" fill="#374151">• Conversations</text>
+      <text x="750" y="168" text-anchor="middle" font-size="10" fill="#374151">• Messages (texte DB)</text>
+      <text x="750" y="184" text-anchor="middle" font-size="10" fill="#374151">• ProjectDocuments</text>
+      <text x="750" y="200" text-anchor="middle" font-size="10" fill="#374151">• Payments · AuditLog</text>
+      <text x="750" y="218" text-anchor="middle" font-size="10" fill="#94a3b8">AWS eu-central-2 (Zurich)</text>
+      <text x="750" y="232" text-anchor="middle" font-size="10" fill="#94a3b8">Prisma 7 (pooler :6543)</text>
+
+      <!-- ── ANTHROPIC ── -->
+      <rect x="670" y="255" width="160" height="130" rx="10" fill="#fff" stroke="#a7f3d0" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="750" y="278" text-anchor="middle" font-size="17">🤖</text>
+      <text x="750" y="298" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">Anthropic API</text>
+      <text x="750" y="318" text-anchor="middle" font-size="11" fill="#374151">Haiku 4.5 · Sonnet 4.5</text>
+      <text x="750" y="334" text-anchor="middle" font-size="11" fill="#374151">Opus 4.5</text>
+      <text x="750" y="354" text-anchor="middle" font-size="10" fill="#374151">🔍 web_search (server-tool)</text>
+      <text x="750" y="370" text-anchor="middle" font-size="10" fill="#374151">🌐 web_fetch (server-tool)</text>
+
+      <!-- ── CINETPAY ── -->
+      <rect x="670" y="405" width="160" height="60" rx="10" fill="#fff" stroke="#a7f3d0" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="750" y="428" text-anchor="middle" font-size="15">💰</text>
+      <text x="750" y="447" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">CinetPay</text>
+      <text x="750" y="462" text-anchor="middle" font-size="10" fill="#374151">Orange Money · Wave · MTN</text>
+
+      <!-- ── EMAIL ── -->
+      <rect x="670" y="480" width="160" height="44" rx="10" fill="#fff" stroke="#a7f3d0" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="750" y="499" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">SMTP (Nodemailer)</text>
+      <text x="750" y="515" text-anchor="middle" font-size="10" fill="#374151">Cash requests · Admin alerts</text>
+
+      <!-- ── FILE PROCESSING (in-memory) ── -->
+      <rect x="270" y="325" width="325" height="70" rx="10" fill="#fffbeb" stroke="#fcd34d" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="432" y="348" text-anchor="middle" font-size="13" font-weight="600" fill="#92400e">📎 Upload Processing (in-memory)</text>
+      <text x="432" y="366" text-anchor="middle" font-size="11" fill="#78350f">PDF/Word/Excel/PPTX → texte extrait → envoyé à Claude</text>
+      <text x="432" y="382" text-anchor="middle" font-size="10" fill="#92400e">⚠ Fichier binaire JAMAIS stocké · Limite: 4 Mo · Vercel cap 4.5 Mo</text>
+
+      <!-- ── DOMAIN ── -->
+      <rect x="30" y="440" width="160" height="60" rx="10" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="110" y="462" text-anchor="middle" font-size="15">🌐</text>
+      <text x="110" y="480" text-anchor="middle" font-size="13" font-weight="600" fill="#1a202c">liya.digital</text>
+      <text x="110" y="496" text-anchor="middle" font-size="10" fill="#718096">DNS CNAME → Vercel</text>
+
+      <!-- ── CONTEXT NOTE ── -->
+      <rect x="270" y="420" width="155" height="70" rx="10" fill="#fdf4ff" stroke="#e9d5ff" stroke-width="1.5" filter="url(#shadow)"/>
+      <text x="347" y="443" text-anchor="middle" font-size="13" font-weight="600" fill="#6b21a8">📚 Contexte</text>
+      <text x="347" y="460" text-anchor="middle" font-size="11" fill="#374151">20 derniers messages</text>
+      <text x="347" y="476" text-anchor="middle" font-size="11" fill="#374151">chargés depuis Supabase</text>
+      <text x="347" y="490" text-anchor="middle" font-size="10" fill="#6b21a8">envoyés à chaque appel API</text>
+
+      <!-- ════════════ ARROWS ════════════ -->
+
+      <!-- User ↔ Frontend -->
+      <line x1="190" y1="90" x2="268" y2="90" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arr)"/>
+      <text x="228" y="83" text-anchor="middle" font-size="9" fill="#64748b">HTTPS</text>
+
+      <!-- Frontend → API Routes -->
+      <line x1="425" y1="95" x2="443" y2="95" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+
+      <!-- Frontend ↔ NextAuth -->
+      <line x1="347" y1="135" x2="347" y2="158" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#arr)"/>
+
+      <!-- API Routes → Supabase -->
+      <line x1="595" y1="130" x2="668" y2="140" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-green)"/>
+      <text x="635" y="128" text-anchor="middle" font-size="9" fill="#059669">Prisma</text>
+
+      <!-- API Routes → Anthropic -->
+      <line x1="595" y1="190" x2="668" y2="300" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-green)"/>
+      <text x="638" y="250" text-anchor="middle" font-size="9" fill="#059669">SSE</text>
+
+      <!-- API Routes → CinetPay -->
+      <line x1="595" y1="220" x2="668" y2="435" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-orange)"/>
+
+      <!-- API Routes → Email -->
+      <line x1="520" y1="220" x2="680" y2="500" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" marker-end="url(#arr-orange)"/>
+
+      <!-- Upload → API Routes -->
+      <line x1="432" y1="325" x2="520" y2="220" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-orange)"/>
+
+      <!-- Context → API Routes -->
+      <line x1="425" y1="455" x2="445" y2="200" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+      <!-- Domain → Frontend -->
+      <line x1="110" y1="440" x2="110" y2="128" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3"/>
+      <line x1="110" y1="128" x2="268" y2="95" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+      <!-- Middleware → Frontend -->
+      <line x1="347" y1="245" x2="347" y2="222" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+
+      <!-- NO CLOUDFLARE label -->
+      <rect x="30" y="175" width="160" height="40" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+      <text x="110" y="193" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">❌ Pas de Cloudflare</text>
+      <text x="110" y="209" text-anchor="middle" font-size="10" fill="#b91c1c">CDN = Vercel Edge Network</text>
+
+      <!-- NO S3 label -->
+      <rect x="30" y="230" width="160" height="40" rx="8" fill="#fef2f2" stroke="#fca5a5" stroke-width="1.5"/>
+      <text x="110" y="248" text-anchor="middle" font-size="12" font-weight="600" fill="#dc2626">❌ Pas de stockage fichier</text>
+      <text x="110" y="264" text-anchor="middle" font-size="10" fill="#b91c1c">Pas S3, pas Supabase Storage</text>
+
+      <!-- NO DB SESSION label -->
+      <rect x="30" y="285" width="160" height="40" rx="8" fill="#fff7ed" stroke="#fed7aa" stroke-width="1.5"/>
+      <text x="110" y="303" text-anchor="middle" font-size="12" font-weight="600" fill="#c2410c">JWT Cookie</text>
+      <text x="110" y="319" text-anchor="middle" font-size="10" fill="#9a3412">Session sans DB · ~30 min</text>
+
+      <!-- LEGEND -->
+      <rect x="30" y="340" width="160" height="88" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="110" y="358" text-anchor="middle" font-size="11" font-weight="700" fill="#64748b">LÉGENDE</text>
+      <line x1="45" y1="373" x2="80" y2="373" stroke="#10b981" stroke-width="1.5" marker-end="url(#arr-green)"/>
+      <text x="90" y="377" font-size="10" fill="#374151">Données persistées</text>
+      <line x1="45" y1="390" x2="80" y2="390" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#arr-blue)"/>
+      <text x="90" y="394" font-size="10" fill="#374151">Flux UI temps réel</text>
+      <line x1="45" y1="407" x2="80" y2="407" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr-orange)"/>
+      <text x="90" y="411" font-size="10" fill="#374151">Appels ponctuels</text>
+      <line x1="45" y1="424" x2="80" y2="424" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+      <text x="90" y="428" font-size="10" fill="#374151">Contexte conversation</text>
+    </svg>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════ FAQ -->
+  <div class="faq">
+
+    <!-- Q1 – Upload fichier -->
+    <div class="card">
+      <h3>📎 Upload fichier — où est-il stocké ?</h3>
+      <ul>
+        <li>Le fichier binaire (PDF, Word, Excel, PPTX…) est reçu par une <strong>Vercel Serverless Function</strong></li>
+        <li>Il est traité <strong>entièrement en mémoire RAM</strong> de la fonction : extraction du texte uniquement</li>
+        <li>Le binaire <strong>n'est jamais stocké</strong> — ni sur Supabase, ni sur S3, ni sur Supabase Storage</li>
+        <li>Le texte extrait est envoyé directement à Claude dans le message</li>
+        <li><strong>Exception — documents de projet :</strong> le texte extrait est stocké dans la table <code>ProjectDocument.content</code> en Supabase (texte pur, pas le binaire)</li>
+      </ul>
+      <div class="highlight">💡 Si l'utilisateur uploade la même facture deux fois, elle est ré-analysée à chaque fois. Pas de déduplication.</div>
+    </div>
+
+    <!-- Q2 – Taille fichier -->
+    <div class="card">
+      <h3>⚖️ Limite de taille de fichier</h3>
+      <ul>
+        <li><strong>Limite applicative :</strong> <span class="badge badge-amber">4 Mo</span> définie dans <code>app/api/upload/route.ts</code></li>
+        <li><strong>Limite Vercel :</strong> 4,5 Mo max par payload de fonction serverless — erreur 413 si dépassé</li>
+        <li>Le 4 Mo applicatif laisse 500 Ko de marge pour les headers HTTP + métadonnées</li>
+        <li>Si dépassé → message d'erreur en français : <em>"Fichier trop volumineux (max 4 Mo)"</em></li>
+      </ul>
+      <div class="warn">⚠️ Pour lever cette limite à 50+ Mo, il faudrait passer à des uploads directs browser → Supabase Storage (signed URLs). Le code contient déjà un commentaire préparatoire pour cette évolution.</div>
+    </div>
+
+    <!-- Q3 – Contexte -->
+    <div class="card">
+      <h3>📚 Contexte — comment et où est-il stocké ?</h3>
+      <ul>
+        <li><strong>Stockage :</strong> table <code>Message</code> dans <strong>Supabase PostgreSQL</strong> (texte brut, colonne <code>content TEXT</code>)</li>
+        <li><strong>À chaque message :</strong> les <strong>20 derniers messages</strong> de la conversation sont rechargés depuis Supabase et envoyés à Claude</li>
+        <li><strong>Pas de vector DB :</strong> pas d'embeddings, pas de RAG — recherche fulltext simple en DB</li>
+        <li><strong>Modèle de données :</strong> Tenant → User → Conversation → Message (1-N-N-N)</li>
+        <li>La session utilisateur (NextAuth) est un <strong>JWT dans un cookie navigateur</strong> — pas en DB</li>
+      </ul>
+      <div class="highlight">💡 La limite de 20 messages = ~16 000 tokens de contexte. Au-delà, les plus anciens messages ne sont plus visibles par Claude dans la même conversation.</div>
+    </div>
+
+    <!-- Q4 – Cloudflare -->
+    <div class="card">
+      <h3>☁️ Y a-t-il Cloudflare ?</h3>
+      <p><strong style="color:#dc2626">Non.</strong> Il n'y a pas de Cloudflare dans la stack actuelle.</p>
+      <br>
+      <ul>
+        <li><strong>CDN :</strong> Vercel Edge Network (PoPs dans 100+ villes)</li>
+        <li><strong>DDoS / WAF :</strong> protection de base incluse dans Vercel Pro</li>
+        <li><strong>SSL/TLS :</strong> certificat Let's Encrypt provisionné automatiquement par Vercel</li>
+        <li><strong>Rate limiting :</strong> implémenté en code (3 req/IP/heure pour /register, 2/user/heure pour cash-request)</li>
+      </ul>
+      <div class="highlight">💡 Pour ajouter Cloudflare : pointer les DNS vers Cloudflare en mode proxy, puis ajouter Vercel comme origin. Donne WAF, règles de rate-limit avancées et analytics réseau.</div>
+    </div>
+
+    <!-- Q5 – liya.digital -->
+    <div class="card">
+      <h3>🌐 liya.digital → Vercel ?</h3>
+      <ul>
+        <li><strong>Oui</strong> — liya.digital est un domaine personnalisé mappé au déploiement Vercel</li>
+        <li>DNS configuré avec un <strong>CNAME</strong> : <code>liya.digital → cname.vercel-dns.com</code></li>
+        <li>SSL automatique via Let's Encrypt (renouvelé par Vercel)</li>
+        <li>L'URL Vercel native (<code>assistai-six.vercel.app</code>) reste accessible en parallèle</li>
+        <li>Chaque <code>git push main</code> → nouveau déploiement Vercel en ~2 minutes → automatiquement servi sur liya.digital</li>
+      </ul>
+      <div class="highlight">💡 Les Preview Deployments Vercel (branches feature) ont leurs propres URLs <code>*.vercel.app</code> mais ne sont pas mappées sur liya.digital.</div>
+    </div>
+
+    <!-- Q6 – Résumé sécurité -->
+    <div class="card">
+      <h3>🔒 Sécurité en place</h3>
+      <ul>
+        <li>CSP headers (Content-Security-Policy) sur toutes les routes</li>
+        <li>HSTS (Strict-Transport-Security) 2 ans</li>
+        <li>X-Frame-Options: DENY (anti-clickjacking)</li>
+        <li>Rate limiting applicatif (register, cash-request)</li>
+        <li>Validation IDOR sur toutes les conversations</li>
+        <li>bcrypt (cost 12) pour les mots de passe</li>
+        <li>AuditLog append-only (login, CRUD, paiements)</li>
+        <li>Séparation tenant strict (toutes les requêtes DB filtrées par tenantId)</li>
+        <li><strong>Pas de Cloudflare WAF</strong> <span class="badge badge-amber">à ajouter si trafic augmente</span></li>
+        <li><strong>Pas de 2FA</strong> <span class="badge badge-amber">évolution possible</span></li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
