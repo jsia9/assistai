@@ -70,6 +70,7 @@ type LocaleContent = {
   modelsLabel: string;
   modelsH: string;
   modelsList: { icon: string; name: string; coeff: string }[];
+  modelCards: { icon: string; name: string; tagline: string; description: string; coeff: string; speed: string; featured: boolean }[];
   ctaFinalH2: string;
   ctaFinalSub: string;
   ctaFinalBtn: string;
@@ -229,6 +230,23 @@ const CONTENT: Record<Locale, LocaleContent> = {
       { icon: "⚡", name: "Haiku",  coeff: "×0,3 — économique" },
       { icon: "✦", name: "Sonnet", coeff: "×1 — référence"    },
       { icon: "◆", name: "Opus",   coeff: "×5 — puissant"     },
+    ],
+    modelCards: [
+      {
+        icon: "⚡", name: "Haiku", tagline: "Rapide & économique", featured: false,
+        description: "Réponses instantanées pour les tâches du quotidien. Idéal pour les questions directes, les résumés courts, les traductions et le traitement de gros volumes de texte. Consomme 3× moins de quota que Sonnet.",
+        coeff: "×0,3 — économise 70%", speed: "⚡⚡⚡ Très rapide",
+      },
+      {
+        icon: "✦", name: "Sonnet", tagline: "Équilibré — le meilleur choix", featured: true,
+        description: "Notre modèle de référence. Intelligence élevée pour analyser des documents, rédiger des rapports professionnels, faire des recherches web et produire du code. Le meilleur rapport qualité / quota pour la grande majorité des usages.",
+        coeff: "×1 — référence", speed: "⚡⚡ Rapide",
+      },
+      {
+        icon: "◆", name: "Opus", tagline: "Intelligence maximale", featured: false,
+        description: "Le modèle le plus puissant d'Anthropic. Raisonnement complexe multi-étapes, analyses juridiques ou financières longues, stratégie avancée, créativité ambitieuse. À utiliser quand la qualité prime sur la vitesse.",
+        coeff: "×5 — consomme 5× plus", speed: "⚡ Standard",
+      },
     ],
     ctaFinalH2: "Essayez LIYA. 72h gratuites, sans engagement.",
     ctaFinalSub: "Avec ou sans carte bancaire. Aucune installation. Démarrez en moins d'une minute.",
@@ -401,6 +419,23 @@ const CONTENT: Record<Locale, LocaleContent> = {
       { icon: "✦", name: "Sonnet", coeff: "×1 — standard"     },
       { icon: "◆", name: "Opus",   coeff: "×5 — powerful"     },
     ],
+    modelCards: [
+      {
+        icon: "⚡", name: "Haiku", tagline: "Fast & economical", featured: false,
+        description: "Instant responses for everyday tasks. Best for direct questions, short summaries, translations, and high-volume text processing. Uses 3× less quota than Sonnet.",
+        coeff: "×0.3 — saves 70%", speed: "⚡⚡⚡ Very fast",
+      },
+      {
+        icon: "✦", name: "Sonnet", tagline: "Balanced — the best choice", featured: true,
+        description: "Our reference model. High intelligence for analyzing documents, drafting professional reports, web research, and writing code. Best quality-to-quota ratio for the vast majority of use cases.",
+        coeff: "×1 — standard", speed: "⚡⚡ Fast",
+      },
+      {
+        icon: "◆", name: "Opus", tagline: "Maximum intelligence", featured: false,
+        description: "Anthropic's most powerful model. Complex multi-step reasoning, in-depth legal or financial analysis, advanced strategy, ambitious creativity. Use it when quality matters more than speed.",
+        coeff: "×5 — uses 5× more quota", speed: "⚡ Standard",
+      },
+    ],
     ctaFinalH2: "Try LIYA. 72 hours free, no commitment.",
     ctaFinalSub: "With or without a credit card. No installation. Up and running in under a minute.",
     ctaFinalBtn: "Start free trial",
@@ -571,6 +606,23 @@ const CONTENT: Record<Locale, LocaleContent> = {
       { icon: "⚡", name: "Haiku",  coeff: "×0.3 — اقتصادي"  },
       { icon: "✦", name: "Sonnet", coeff: "×1 — المرجع"     },
       { icon: "◆", name: "Opus",   coeff: "×5 — قوي"        },
+    ],
+    modelCards: [
+      {
+        icon: "⚡", name: "Haiku", tagline: "سريع واقتصادي", featured: false,
+        description: "ردود فورية للمهام اليومية. مثالي للأسئلة المباشرة والملخصات القصيرة والترجمات ومعالجة النصوص بالجملة. يستهلك 3 أضعاف أقل من Sonnet.",
+        coeff: "×0.3 — يوفّر 70%", speed: "⚡⚡⚡ سريع جداً",
+      },
+      {
+        icon: "✦", name: "Sonnet", tagline: "متوازن — الخيار الأمثل", featured: true,
+        description: "نموذجنا المرجعي. ذكاء عالٍ لتحليل المستندات وصياغة التقارير المهنية والبحث على الإنترنت وكتابة الأكواد. أفضل نسبة جودة/رصيد لمعظم الاستخدامات.",
+        coeff: "×1 — المرجع", speed: "⚡⚡ سريع",
+      },
+      {
+        icon: "◆", name: "Opus", tagline: "أقصى قدرة", featured: false,
+        description: "أقوى نماذج Anthropic. استدلال معقد متعدد الخطوات، تحليلات قانونية ومالية معمّقة، استراتيجية متقدمة وإبداع طموح. يُستخدم عندما تكون الجودة أولى من السرعة.",
+        coeff: "×5 — يستهلك 5× أكثر", speed: "⚡ عادي",
+      },
     ],
     ctaFinalH2: "جرّب LIYA. 72 ساعة مجانية، بدون التزام.",
     ctaFinalSub: "مع أو بدون بطاقة بنكية. بدون تنزيل. جاهز في أقل من دقيقة.",
@@ -893,15 +945,34 @@ export default function LandingPage({ locale = "fr" }: { locale?: Locale }) {
               </p>
             </div>
 
-            {/* Encart modèles */}
-            <div className="mt-6 max-w-[760px] mx-auto bg-white rounded-xl border-l-4 border-aria-terracotta px-8 py-6">
-              <p className="text-[13px] font-semibold tracking-[0.1em] uppercase text-aria-terracotta mb-3">{c.modelsLabel}</p>
-              <p className="text-[15px] leading-[1.6] text-aria-anthracite mb-4">{c.modelsH}</p>
-              <div className="grid grid-cols-3 gap-4">
-                {c.modelsList.map(({ icon, name, coeff }) => (
-                  <div key={name} className="bg-aria-sand rounded-lg p-3">
-                    <strong className="text-aria-indigo">{icon} {name}</strong><br />
-                    <span className="text-[13px] text-aria-stone">{coeff}</span>
+            {/* Encart modèles — cards détaillées */}
+            <div className="mt-8 max-w-[900px] mx-auto">
+              <p className="text-[13px] font-semibold tracking-[0.1em] uppercase text-aria-terracotta mb-2 text-center">{c.modelsLabel}</p>
+              <p className="text-[15px] leading-[1.6] text-aria-stone mb-6 text-center max-w-[640px] mx-auto">{c.modelsH}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {c.modelCards.map((card) => (
+                  <div key={card.name} className={`rounded-2xl border-2 p-6 ${card.featured ? "border-aria-indigo bg-aria-indigo/5 shadow-md" : "border-gray-200 bg-white"}`}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`text-2xl`}>{card.icon}</span>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className={`font-bold text-lg ${card.featured ? "text-aria-indigo" : "text-aria-anthracite"}`}>{card.name}</span>
+                          {card.featured && <span className="text-[10px] bg-aria-indigo text-white px-2 py-0.5 rounded-full font-semibold">RECOMMANDÉ</span>}
+                        </div>
+                        <span className="text-[11px] text-aria-stone font-medium">{card.tagline}</span>
+                      </div>
+                    </div>
+                    <p className="text-[13px] text-aria-stone leading-relaxed mb-4">{card.description}</p>
+                    <div className="border-t border-gray-100 pt-3 space-y-1">
+                      <div className="flex justify-between text-[12px]">
+                        <span className="text-aria-stone">Coût en tokens</span>
+                        <span className={`font-bold ${card.featured ? "text-aria-indigo" : card.name === "Opus" ? "text-purple-600" : "text-emerald-600"}`}>{card.coeff}</span>
+                      </div>
+                      <div className="flex justify-between text-[12px]">
+                        <span className="text-aria-stone">Vitesse</span>
+                        <span className="font-medium text-aria-anthracite">{card.speed}</span>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>

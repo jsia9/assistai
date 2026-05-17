@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { MarkdownMessage } from "./MarkdownMessage";
 import ProjectPanel from "./ProjectPanel";
+import McpPanel from "./McpPanel";
 import { MODEL_METADATA, type ModelId } from "@/lib/model-coefficients";
 
 interface Attachment {
@@ -123,6 +124,9 @@ export default function ChatInterface({
       ? (saved as ModelId)
       : DEFAULT_MODEL;
   });
+
+  // ── MCP connections panel ─────────────────────────────────────
+  const [showMcp, setShowMcp] = useState(false);
 
   // ── Opus toast ────────────────────────────────────────────────
   const [opusToast, setOpusToast] = useState(false);
@@ -449,13 +453,73 @@ export default function ChatInterface({
     if (!files.length) return;
     setUploading(true);
     for (const file of files) {
-      const form = new FormData();
-      form.append("file", file);
-      try {
-        const res = await fetch("/api/upload", { method: "POST", body: form });
-        if (res.ok) { const att: Attachment = await res.json(); setPendingAttachments((prev) => [...prev, att]); }
-        else alert(`Erreur : ${await res.text()}`);
-      } catch { alert("Erreur lors du chargement du fichier."); }
+      const SMALL_FILE_LIMIT = 3.5 * 1024 * 1024; // 3.5 MB — safe under Vercel's 4.5 MB cap
+      if (file.size <= SMALL_FILE_LIMIT) {
+        // ── Small file: upload directly through the Next.js API route ──
+        const form = new FormData();
+        form.append("file", file);
+        try {
+          const res = await fetch("/api/upload", { method: "POST", body: form });
+          if (res.ok) { const att: Attachment = await res.json(); setPendingAttachments((prev) => [...prev, att]); }
+          else alert(`Erreur : ${await res.text()}`);
+        } catch { alert("Erreur lors du chargement du fichier."); }
+      } else {
+        // ── Large file (>3.5 MB): direct-to-Supabase Storage upload ──
+
+        // Step 1: get a signed upload URL
+        let uploadUrl: string;
+        let path: string;
+        try {
+          const signRes = await fetch("/api/upload/sign", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: file.name, mimeType: file.type, size: file.size }),
+          });
+          if (!signRes.ok) {
+            alert(`Impossible d'initialiser l'upload : ${await signRes.text()}`);
+            continue;
+          }
+          const signData = await signRes.json() as { uploadUrl: string; path: string };
+          uploadUrl = signData.uploadUrl;
+          path = signData.path;
+        } catch {
+          alert("Erreur réseau lors de l'initialisation de l'upload.");
+          continue;
+        }
+
+        // Step 2: upload the file binary directly to Supabase Storage
+        try {
+          const uploadRes = await fetch(uploadUrl, {
+            method: "PUT",
+            headers: { "Content-Type": file.type || "application/octet-stream" },
+            body: file,
+          });
+          if (!uploadRes.ok) {
+            alert(`Erreur lors de l'upload du fichier (${uploadRes.status}).`);
+            continue;
+          }
+        } catch {
+          alert("Erreur réseau lors de l'upload du fichier.");
+          continue;
+        }
+
+        // Step 3: ask the server to download from storage, extract text, and return attachment
+        try {
+          const fromRes = await fetch("/api/upload/from-storage", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path, name: file.name, mimeType: file.type }),
+          });
+          if (fromRes.ok) {
+            const att: Attachment = await fromRes.json();
+            setPendingAttachments((prev) => [...prev, att]);
+          } else {
+            alert(`Erreur lors du traitement du fichier : ${await fromRes.text()}`);
+          }
+        } catch {
+          alert("Erreur réseau lors du traitement du fichier.");
+        }
+      }
     }
     setUploading(false);
   }
@@ -864,21 +928,57 @@ export default function ChatInterface({
                 <span className="text-[11px] text-gray-400 mr-1 flex-shrink-0">Modèle :</span>
                 {MODEL_OPTIONS.map((opt) => {
                   const active = model === opt.id;
+                  // Per-model tooltip details
+                  const tooltipDetails: Record<string, { speed: string; bestFor: string; cost: string; warning?: string }> = {
+                    "claude-haiku-4-5": {
+                      speed: "⚡ Très rapide",
+                      bestFor: "Questions directes, résumés courts, traductions, tâches répétitives en volume",
+                      cost: "0,3 token débité par token réel — économise 70% vs Sonnet",
+                    },
+                    "claude-sonnet-4-5": {
+                      speed: "✦ Rapide",
+                      bestFor: "Analyse de documents, rédaction professionnelle, recherche web, code, la majorité des tâches",
+                      cost: "1 token débité par token réel — référence de tarification",
+                    },
+                    "claude-opus-4-5": {
+                      speed: "◆ Plus lent",
+                      bestFor: "Raisonnement complexe, analyses juridiques/financières longues, créativité avancée, tâches multi-étapes",
+                      cost: "5 tokens débités par token réel",
+                      warning: "Consomme 5× plus de quota. À utiliser pour les tâches qui le justifient.",
+                    },
+                  };
+                  const tip = tooltipDetails[opt.id];
                   return (
-                    <button
-                      key={opt.id}
-                      onClick={() => selectModel(opt.id as ModelId)}
-                      title={`${opt.description} — ${opt.coeffLabel} tokens`}
-                      className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
-                        active ? opt.activeBg : `${opt.bg} ${opt.color} hover:opacity-80`
-                      }`}
-                    >
-                      <span>{opt.icon}</span>
-                      <span>{opt.label}</span>
-                      <span className={`text-[9px] opacity-70 font-normal ${active ? "opacity-80" : ""}`}>
-                        {opt.coeffLabel}
-                      </span>
-                    </button>
+                    <div key={opt.id} className="relative group/modelbtn">
+                      <button
+                        onClick={() => selectModel(opt.id as ModelId)}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                          active ? opt.activeBg : `${opt.bg} ${opt.color} hover:opacity-80`
+                        }`}
+                      >
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                        <span className={`text-[9px] opacity-70 font-normal ${active ? "opacity-80" : ""}`}>
+                          {opt.coeffLabel}
+                        </span>
+                      </button>
+                      {/* Rich tooltip */}
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-60 bg-gray-900 text-white rounded-xl p-3 opacity-0 group-hover/modelbtn:opacity-100 pointer-events-none transition-all duration-150 z-50 shadow-2xl">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="text-base">{opt.icon}</span>
+                          <span className="font-bold text-sm">{opt.label}</span>
+                          <span className="ml-auto text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full">{opt.coeffLabel}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-300 mb-1">{tip?.speed}</p>
+                        <p className="text-[11px] text-gray-100 mb-2 leading-relaxed"><span className="text-gray-400 text-[10px]">Idéal pour : </span>{tip?.bestFor}</p>
+                        <div className="border-t border-white/10 pt-2">
+                          <p className="text-[10px] text-gray-400">💰 {tip?.cost}</p>
+                          {tip?.warning && <p className="text-[10px] text-amber-400 mt-1">⚠️ {tip.warning}</p>}
+                        </div>
+                        {/* Arrow */}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+                      </div>
+                    </div>
                   );
                 })}
                 {model === "claude-opus-4-5" && (
@@ -937,6 +1037,16 @@ export default function ChatInterface({
                       <span>Exporter</span>
                     </button>
                   )}
+
+                  {/* MCP Connections */}
+                  <button
+                    onClick={() => setShowMcp(true)}
+                    title="Gérer vos connexions MCP"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border border-gray-200 text-gray-500 bg-white hover:border-aria-indigo/40 hover:text-aria-indigo transition-all"
+                  >
+                    <span>🔌</span>
+                    <span>Connexions</span>
+                  </button>
                 </div>
               </div>
             </div>
